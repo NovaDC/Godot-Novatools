@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <g
+     id="layer1">
+    <path
+       style="font-size:16.2432px;font-family:Eurostile;-inkscape-font-specification:'Eurostile, Normal';fill:#b3b3b3;stroke-width:0.676799;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;paint-order:stroke fill markers"
+       d="M 9.2223498,5.154318 V 15.980474 H 7.2157435 L 2.6790684,8.6123431 1.9414621,7.3988618 1.5766246,6.7960868 1.2117871,6.1933118 h -0.031725 l 0.00793,0.4044937 0.00793,0.4124251 V 7.8192181 15.980474 H -0.02548786 V 5.154318 H 1.9731871 l 3.9576939,6.456038 1.0310625,1.697287 0.5155312,0.840713 0.5076,0.848643 h 0.031725 l -0.00793,-0.404493 -0.00793,-0.412425 V 13.371093 5.154318 Z"
+       id="text1"
+       aria-label="N" />
+    <path
+       d="M 15.998891,2.8055045 13.301169,3.8135499 14.904441,6.0984528 14.136407,6.6744788 12.504334,4.303172 10.747454,6.6744788 9.9794199,6.0984528 11.659496,3.8135499 8.980975,2.8055045 9.3169904,1.8454613 12.005111,2.8055045 V 0.01177874 h 0.979244 V 2.8055045 l 2.66892,-0.9600432 z"
+       id="text2"
+       style="font-size:16.2432px;font-family:Eurostile;-inkscape-font-specification:'Eurostile, Normal';fill:#b3b3b3;stroke-width:0.819236;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;paint-order:stroke fill markers"
+       aria-label="*" />
+  </g>
+</svg>
