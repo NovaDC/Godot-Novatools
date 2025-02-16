@@ -529,3 +529,144 @@ static func try_callv_vcs_method(name:StringName,
 ## if the vcs is not enabled.
 static func vcs_is_something_changed() -> bool:
 	return vcs_active() and callv_vcs_method("get_modified_files_data", []).size() > 0
+
+## Gets a dict containing information on a given [param]path_or_name[/param] of a script.[br]
+## This may return a empty dict if no or more than one script is found where
+## [param]path_or_name[/param] is the path or name of the script.[br]
+## The returned [Dictionary]'s format will always match that of
+## [method ProjectSettings.get_global_class_list],
+## unless the returned [Dictionary] is empty.
+static func get_global_script_info(path_or_name:String) -> Dictionary:
+	var filter := func(d): return (d["class"] == path_or_name or d["path"] == path_or_name)
+	var found := ProjectSettings.get_global_class_list().filter(filter)
+	if found.size() == 1: #non ambiguous
+		return found[0]
+	return {}
+
+## Gets the class name of the given [param]path_name_or_script[/param].[br]
+## If [param]path_name_or_script[/param] is a [Script],
+## it will always return the [method Script.get_global_name].
+## If [param]path_name_or_script[/param] is a [String], it will be treated as a
+## potential class name or math to a script.
+## It will return [param]path_name_or_script[/param] unchanged if [param]path_name_or_script[/param]
+## is a name of a class in the [ClassDB], or the name of a global script if a [b]single[/b] script
+## with that name or path can be found.[br]
+static func class_name_normalize(path_name_or_script) -> String:
+	if path_name_or_script is Script:
+		return path_name_or_script.get_global_name()
+	if ClassDB.class_exists(path_name_or_script):
+		return path_name_or_script
+	return get_global_script_info(path_name_or_script).get("class", "")
+
+## Gets the path to a given [param]path_name_or_script[/param].[br]
+## If [param]path_name_or_script[/param] is a [Script],
+## it will always return [member Script.resource_path], even if it's empty.[br]
+## Otherwise, [param]path_name_or_script[/param] will be treated as a
+## potential name or path to a script and if a [b]single[/b] [Script] is found,
+## it's path will be returened.[br]
+static func script_path_normalize(path_name_or_script) -> String:
+	if path_name_or_script is Script:
+		return path_name_or_script.resource_path
+	return get_global_script_info(path_name_or_script).get("path", "")
+
+## Returns the name of base class of the [param]path_name_or_script[/param].
+## If none are found, return [param]default[/param].
+static func get_class_base(path_name_or_script) -> String:
+	if path_name_or_script is Script:
+		return path_name_or_script.get_instance_base_type()
+	if ClassDB.class_exists(path_name_or_script):
+		return ClassDB.get_parent_class(path_name_or_script)
+	return get_global_script_info(path_name_or_script).get("base", "")
+
+## Returns the icon for the given [param]path_or_name[/param] of a class.[br]
+## NOTE: This currently cannot retrieve the icons of builtin classes.
+static func get_class_icon_path(path_or_name:String) -> String:
+	#no way to get builtin icons for scripts, huh...
+	return get_global_script_info(path_or_name).get("icon", "")
+
+## Instantiate the given [param]path_name_script_or_scene[/param]
+## (resource path, class name, script object, or packed scene object).
+## If [param]path_name_script_or_scene[/param] is the name of a class in the
+## [ClassDB], that will always take precedent.[br]
+## Will default to returning [code]null[/code] when things can't be found.
+static func instantiate_this(path_name_script_or_scene) -> Object:
+	if path_name_script_or_scene is String:
+		if (ClassDB.class_exists(path_name_script_or_scene) and
+			ClassDB.is_class_enabled(path_name_script_or_scene) and
+			ClassDB.can_instantiate(path_name_script_or_scene)
+		   ):
+			return ClassDB.instantiate(path_name_script_or_scene)
+		
+		var script_path = script_path_normalize(path_name_script_or_scene)
+		if not script_path.is_empty() and ResourceLoader.exists(script_path, "Script"):
+			var loaded := load(script_path)
+			if loaded != null and loaded.can_instantiate():
+				path_name_script_or_scene = loaded
+		elif ResourceLoader.exists(path_name_script_or_scene, "PackedScene"):
+			var loaded := load(path_name_script_or_scene)
+			if loaded != null and loaded.can_instantiate():
+				path_name_script_or_scene = loaded
+	
+	if path_name_script_or_scene is Script:
+		return path_name_script_or_scene.new()
+	elif path_name_script_or_scene is PackedScene:
+		return path_name_script_or_scene.instantiate()
+
+	return null
+
+## Get the classes that inherit the [param name_or_path]
+## of a class, including classes defined in currently loaded [Scripts].[br]
+## This list will not include the base [param name_or_path].[br]
+## This function allows for either (or both) [param include_script_paths]
+## or [param include_script_class_names].
+## If both are included, this lis may contain the class name and the path
+## of the same script simutaniously.
+static func get_classes_inheriting(name_or_path:String,
+								   include_script_paths := false,
+								   include_script_class_names := true
+								  ) -> PackedStringArray:
+	assert(include_script_class_names or include_script_paths,
+		   "You have to include at least one of the names or paths..."
+		  )
+	var path := script_path_normalize(name_or_path)
+	var name := class_name_normalize(name_or_path)
+	var found := ClassDB.get_inheriters_from_class(name_or_path)
+	found.append(path)
+	found.append(name)
+	var added:int = found.size()
+	# We need to do this recursively,
+	# and we have not controll over order,
+	# so monitor the amount of things found and stop once no more can be added
+	while added > 0:
+		added = 0
+		for d in ProjectSettings.get_global_class_list():
+			if d["base"] in found:
+				if (include_script_paths and
+					d.has("path") and
+					d["path"] not in found
+					and not d.get("path", "").is_empty()
+				   ):
+					found.append(d["path"])
+					added += 1
+				if (include_script_class_names and
+					d.has("class") and
+					d["class"] not in found and
+					not d.get("class", "").is_empty()
+				   ):
+					found.append(d["class"])
+					added += 1
+	while found.find(name) > -1:
+		found.remove_at(found.find(name))
+	while found.find(path) > -1:
+		found.remove_at(found.find(path))
+	return found
+
+## Gets the class name or path of the object,
+## giving priority to the class names of any attached scripts
+static func get_class_name(object:Object) -> String:
+	var script:Script= object.get_script()
+	if script != null:
+		var script_name := script.get_global_name()
+		if not script_name.is_empty():
+			return script_name
+	return object.get_class()
