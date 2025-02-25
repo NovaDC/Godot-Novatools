@@ -7,7 +7,6 @@ class_name NovaTools
 ## A collection of common static tool functions used in several plugins,
 ## not a class that should be instantiated.
 
-
 ## The command line flag used with godot when wanting
 ## to strip the header message from stdout output.
 const GODOT_NO_HEADER_FLAG := "--no-header"
@@ -670,3 +669,126 @@ static func get_class_name(object:Object) -> String:
 		if not script_name.is_empty():
 			return script_name
 	return object.get_class()
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_neighbor_right]
+## to the [Control] next to them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_neighbor_right] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_neighbor_right].
+static func focus_chain_right(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_neighbor_right = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_neighbor_left]
+## to the [Control] next to them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_neighbor_left] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_neighbor_left].
+static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_neighbor_left = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_neighbor_top]
+## to the [Control] next to them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_neighbor_top] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_neighbor_top].
+static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_neighbor_top = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_neighbor_bottom]
+## to the [Control] next to them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_neighbor_bottom] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_neighbor_bottom].
+static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_neighbor_bottom = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_next]
+## to the [Control] next to them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_next] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_next].
+static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_next = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s, setting thier [member Conntrol.focus_neighbor_bottom],
+## [member Conntrol.focus_neighbor_top], [member Conntrol.focus_neighbor_left],
+## [member Conntrol.focus_neighbor_right], [member Conntrol.focus_next],
+## and [member Conntrol.focus_previous] to the [Control] beside them in [param controls].[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## first [Control] in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_previous] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_previous].
+static func focus_chain_previous(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	var range_max := controls.size()
+	if not loop:
+		range_max -= 1
+	for i in range(range_max):
+		var next_i := wrap(i+1, 0, controls.size())
+		controls[i].focus_previous = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
+
+## Takes a [Array] of [Control]s and sets thier [member Conntrol.focus_previous]
+## .[br]
+## If [param loop], the last [Control] in [param controls] will also link to the
+## First item in [param controls].[br]
+## Similar to [method Node.get_path_to], [param unique_paths_allowed] will allow for unique
+## paths as well, if the route is shorter.[br]
+## NOTE: in there is no node path that can be made from one [Control] to the next, that
+## [member Conntrol.focus_previous] will be cleared.[br]
+## NOTE: This overides any existing paths set for [member Conntrol.focus_previous].
+static func focus_chain_all(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+	focus_chain_bottom(controls, loop, unique_paths_allowed)
+	focus_chain_right(controls, loop, unique_paths_allowed)
+	focus_chain_next(controls, loop, unique_paths_allowed)
+	var rev := controls.duplicate()
+	rev.reverse()
+	focus_chain_top(rev, loop, unique_paths_allowed)
+	focus_chain_left(rev, loop, unique_paths_allowed)
+	focus_chain_previous(rev, loop, unique_paths_allowed)

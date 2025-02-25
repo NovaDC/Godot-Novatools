@@ -11,9 +11,17 @@ config_version=5
 [application]
 
 config/name="Novatools"
-config/version="1.0.0.0"
-config/features=PackedStringArray("4.2", "GL Compatibility")
+config/version="1.2.0.0"
+config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://addons/novatools/icon.svg"
+
+[autoload]
+
+TreeWatcher="*res://addons/novatools/tree_watcher.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/novatools/plugin.cfg")
 
 [rendering]
 
