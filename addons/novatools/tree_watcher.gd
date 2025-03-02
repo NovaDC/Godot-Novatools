@@ -1,12 +1,23 @@
 @tool
+@icon("./icon.svg")
 extends Node
 class_name TreeWatcherSingleton
 
-## Emittes when the tree is paused.
+## TreeWatcherSingleton
+##
+## A node intended to be used as a (autoloaded [Node]) singleton. Used to monitor certian
+## changes in the [SceneTree] which the [SceneTree] currently doesn't currently provide a simple
+## interface to do.[br]
+## Currently provides signals connected to the changing of [Scene]s, and to the
+## [member SceneTree.paused] state of the tree (independent of the [member Node.process_mode] of any
+## given [Node]). This singleton may be deprecated in the future if godot decides to provide similar
+## [Signal]s or methods that provide the same, scene-agnostic functionally.
+
+## Emits when the tree is paused.
 signal tree_paused()
-## Emittes when the tree is unpaused.
+## Emits when the tree is unpaused.
 signal tree_resumed()
-## Emittes when the tree is pause state is changed.
+## Emits when the tree is pause state is changed.
 signal tree_pause_change(paused:bool)
 
 ## Emitted when a new scene is loaded into the tree. [param old_scene_root] is the old top level
@@ -16,24 +27,8 @@ signal tree_scene_unloaded(old_scene_root:Node)
 ## [Node] of the scene.
 signal tree_scene_loaded(scene_root:Node)
 
-var _latest_scene_root:Node = null
-func _on_node_add(node:Node):
-	var tree := get_tree()
-	if tree == null:
-		return
-	if _latest_scene_root != tree.current_scene:
-		tree_scene_loaded.emit(tree.current_scene)
-		_latest_scene_root = tree.current_scene
-
-func _on_node_free(node:Node):
-	var tree := get_tree()
-	if tree == null:
-		return
-	if (tree.current_scene == null and _latest_scene_root != null) or node == _latest_scene_root:
-		tree_scene_unloaded.emit(_latest_scene_root)
-		_latest_scene_root = tree.current_scene
-
 var _pause_eye:PauseEye = null
+var _latest_scene_root:Node = null
 
 func _enter_tree():
 	_on_node_add(self)
@@ -59,3 +54,19 @@ func _ready():
 
 func _exit_tree() -> void:
 	_on_node_free(self)
+
+func _on_node_add(_node:Node):
+	var tree := get_tree()
+	if tree == null:
+		return
+	if _latest_scene_root != tree.current_scene:
+		tree_scene_loaded.emit(tree.current_scene)
+		_latest_scene_root = tree.current_scene
+
+func _on_node_free(node:Node):
+	var tree := get_tree()
+	if tree == null:
+		return
+	if (tree.current_scene == null and _latest_scene_root != null) or node == _latest_scene_root:
+		tree_scene_unloaded.emit(_latest_scene_root)
+		_latest_scene_root = tree.current_scene
