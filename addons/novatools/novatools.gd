@@ -69,8 +69,13 @@ static func show_wait_window_while_async(message:String,
 	wind.transient = true
 	wind.add_child(lab)
 	wind.popup_hide.connect(func(): wind.visible = true)
+	wind.set_unparent_when_invisible(false)
 	
-	EditorInterface.popup_dialog_centered(wind, min_size)
+	if Engine.is_editor_hint():
+		EditorInterface.popup_dialog_centered(wind, min_size)
+	else:
+		Engine.get_main_loop().root.add_child(wind)
+		wind.popup_centered(min_size)
 	
 	var ret = await function.call()
 	
@@ -282,6 +287,18 @@ static func download_http_async(to_path:String,
 	print("Download complete!")
 	return OK
 
+## An absolute version or [method DirAccess.is_link],
+## returning [param unsupported_default] when the current platform does not support [method DirAccess.is_link],
+## and [code]false[/code] when the base directory could not be opened.
+static func is_dir_link_absolute(p:String, unsupported_default := false) -> bool:
+	if not OS.get_name() in ["Windows", "macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"]:
+		return unsupported_default
+	p = p.simplify_path()
+	var da := DirAccess.open(p.get_base_dir())
+	if da == null:
+		return false
+	return da.is_link(p)
+
 ## Decompresses the [code]zip[/code] file located at [param file_path] [param to_path].[br]
 ## If [param whitelist_starts] is not empty, only file paths that zip relative location
 ## starts with any of the given strings will be decompressed.
@@ -324,51 +341,78 @@ static func decompress_zip_async(file_path:String,
 
 ## Compresses the files located at [param source_path] to a [code]zip[/code] file located
 ## at [param to_file].[br]
-## If [param whitelist_starts] is not empty, only file paths that location relitive
-## to the [param source_path] starts with nay of the given strings will be compressed.
+## If [param whitelist_starts] is not empty, only file paths that location relative
+## to the [param source_path] starts with nay of the given strings will be compressed.[br]
+## If [param include_linked] is true, linked files will also be included in the zip.
+## [param compression_level] is the specific compression level to use when compressing.
+## Since -1 is a valid ZIP compression level (corelating to the internal library's definition of a default compression level to use, [b]not[/b] to be confused with the default level set in the [ProjectSettings], of which can also include this -1 default value), the value used by this function to indicates the compression level should default to the value in [ProjectSettings] is -2 or lower. 
+## Note that specifying a individual compression level is only supported in godot v4.5 and up, so this paramiter will raise an error if anything besides the [ProjectSettings] default value is specified to be used (including both by specifying the actual value in project settings or by specifying this to -2 or lower, as noted above).
 static func compress_zip_async(source_path:String,
 							   to_file:String,
-							   whitelist_starts:Array[String] = []
+							   whitelist_starts:Array[String] = [],
+							   include_linked := true,
+							   compression_level:int = -2
 							  ) -> Error:
+
+	if compression_level <= -2:
+		compression_level = ProjectSettings.get_setting("compression/formats/zlib/compression_level")
+	var ver_supports_comp_level:bool = not (Engine.get_version_info()["major"] <= 4 and Engine.get_version_info()["minor"] <= 4)
+	if not ver_supports_comp_level:
+		# We're only allowed to use this level in the first place...
+		assert(compression_level == ProjectSettings.get_setting("compression/formats/zlib/compression_level"))
+
+	if not DirAccess.dir_exists_absolute(source_path):
+		return ERR_FILE_NOT_FOUND
+
+	var err:int = ensure_absolute_dir_exists(to_file.get_base_dir())
+	if err != OK:
+		return err
+
+	var files = get_children_files_recursive(source_path)
+	files = Array(files).filter(func (p:String): return ((whitelist_starts.is_empty() or whitelist_starts.any(func (start:String): return p.begins_with(start))) and not to_file in p))
+	if not include_linked and OS.get_name() in ["Windows", "macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"]:
+		files = files.filter(is_dir_link_absolute)
+
+	if files.is_empty():
+		return OK
+
 	var packer := ZIPPacker.new()
-	var err := packer.open(to_file, ZIPPacker.APPEND_CREATE)
-	if err != OK:
-		return err
+	if ver_supports_comp_level:
+		packer.compression_level = compression_level
+	err = packer.open(to_file, ZIPPacker.APPEND_CREATE)
+	if err == OK:
+		for file_path in files:
+			assert(file_path.begins_with(source_path))
+			var internal_path = file_path.lstrip("/").rstrip("/").substr(source_path.lstrip("/").rstrip("/").length()).lstrip("/").rstrip("/")
+
+			var data := FileAccess.get_file_as_bytes(file_path)
+			if data.is_empty():
+				err = FileAccess.get_open_error()
+				if err != OK and err != ERR_FILE_CANT_OPEN:
+					break
+
+			await Engine.get_main_loop().process_frame
+			
+			err = packer.start_file(internal_path)
+			if err != OK:
+				break
+			
+			err = packer.write_file(data)
+			if err != OK:
+				break
+			
+			err = packer.close_file()
+			if err != OK:
+				break
+			
+			await Engine.get_main_loop().process_frame
 	
-	for file_path in get_children_files_recursive(source_path):
-		if (not whitelist_starts.is_empty() and
-			not whitelist_starts.any(func (start:String): return file_path.begins_with(start))
-		   ):
-			continue
-		
-		assert(file_path.begins_with(source_path))
-		var internal_path = file_path.substr(file_path.length()).lstrip("/").rstrip("/")
-		
-		var data := FileAccess.get_file_as_bytes(file_path)
-		if data.is_empty():
-			return FileAccess.get_open_error()
-		
-		await Engine.get_main_loop().process_frame
-		
-		err = packer.start_file(internal_path)
-		if err != OK:
-			return err
-		
-		err = packer.write_file(data)
-		if err != OK:
-			return err
-		
-		err = packer.close_file()
-		if err != OK:
-			return err
-		
-		await Engine.get_main_loop().process_frame
+	if err == OK:
+		err = packer.close()
+	else:
+		packer.close() # we should still try to close, but we should maintin the earliest error to return
 	
-	err = packer.close()
-	if err != OK:
-		return err
-	
-	return OK
+	return err
 
 ## Ensures a given path exists, without throwing errors if the directory already exists.
 static func ensure_absolute_dir_exists(path:String) -> Error:
@@ -396,9 +440,10 @@ static func get_children_dir_recursive(from_path:String,
 
 ## Returns the absolute paths to all files located under the given [param from_path].
 static func get_children_files_recursive(from_path:String) -> PackedStringArray:
-	var found := DirAccess.get_files_at(from_path)
+	var found := PackedStringArray(Array(DirAccess.get_files_at(from_path)).map(func (r:String): return from_path.path_join(r)))
 	for dir in DirAccess.get_directories_at(from_path):
-		found.append_array(get_children_files_recursive(from_path + "/" + dir))
+		found.append_array(get_children_files_recursive(from_path.path_join(dir)))
+
 	return found
 
 ## Generates a [code]version.py[/code] file for this
@@ -411,34 +456,55 @@ static func generate_version_py(to_path:String) -> Error:
 	if ver_file == null:
 		return FileAccess.get_open_error()
 	
+	var err:int = OK
+
 	var is_latest:bool = Engine.get_version_info()["status"] == "dev"
 	
-	ver_file.store_line('website="https://godotengine.org"')
-	ver_file.store_line('name="Godot Engine"')
-	ver_file.store_line('short_name="godot"')
-	ver_file.store_line('module_config=""')
-	ver_file.store_line('docs="%s"#Autogenerated"' % ["latest" if is_latest else "stable"])
+	if err == OK and not ver_file.store_line('website="https://godotengine.org"'):
+		err = ver_file.get_error()
+	if err == OK and not ver_file.store_line('name="Godot Engine"'):
+		err = ver_file.get_error()
+	if err == OK and not ver_file.store_line('short_name="godot"'):
+		err = ver_file.get_error()
+	if err == OK and not ver_file.store_line('module_config=""'):
+		err = ver_file.get_error()
+	if err == OK and not ver_file.store_line('docs="%s"#Autogenerated"' % ["latest" if is_latest else "stable"]):
+		err = ver_file.get_error()
 	for key in Engine.get_version_info().keys():
+		if err != OK:
+			break
 		var value = Engine.get_version_info()[key]
 		if value is String:
 			value = '"' + value + '"'
-		ver_file.store_line("%s=%s#Autogenerated" % [key, value])
-	
-	ver_file.close()
+		if not ver_file.store_line("%s=%s#Autogenerated" % [key, value]):
+			err = ver_file.get_error()
 
-	return OK
+	return err
 
 ## Copies all files and directories from [param from_path] to [param to_path].
 ## All paths set in [param ignore_folders] will be skipped when copying.[br]
+## The array in [param successfully_copied_buffer] will have all the paths that were created during copying without any errors appended to it.[br]
 ## NOTE: Depending on the size of data begin moved,
 ## this function can freeze the editor for some time.
 static func copy_recursive(from_path:String,
 						   to_path:String,
-						   ignore_folders:=PackedStringArray()
+						   ignore_folders:=PackedStringArray(),
+						   max_files:int = -1,
+						   delete_on_fail := true,
+						   successfully_copied_buffer := PackedStringArray()
 						  ) -> Error:
 	from_path = from_path.rstrip("/")
 	to_path = to_path.rstrip("/")
+	var try_panic_delete := func():
+		if delete_on_fail:
+			for f in successfully_copied_buffer:
+				#just try all of it
+				delete_recursive(f)
 	
+	if max_files == 0:
+		try_panic_delete.call()
+		return ERR_TIMEOUT
+
 	if from_path.begins_with("res:") or from_path.begins_with("user:"):
 		if from_path in ["res:", "user:"]:
 			from_path += "//"
@@ -458,47 +524,735 @@ static func copy_recursive(from_path:String,
 	if not DirAccess.dir_exists_absolute(to_path):
 		var err := DirAccess.make_dir_recursive_absolute(to_path)
 		if err != OK:
+			try_panic_delete.call()
 			return err
+		successfully_copied_buffer.append(to_path)
 	
 	for file in DirAccess.get_files_at(from_path):
+		var err := OK
+		if max_files == 0:
+			return ERR_TIMEOUT
 		file = file.lstrip("/")
 		var from_file := (from_path.rstrip("/") + "/" + file).rstrip("/")
 		var to_file := (to_path.rstrip("/") + "/" + file).rstrip("/")
-		var err := DirAccess.copy_absolute(from_file, to_file)
+		err = DirAccess.copy_absolute(from_file, to_file)
+		if max_files > 0:
+			max_files -= 1
 		if err != OK:
+			try_panic_delete.call()
 			return err
+		else:
+			successfully_copied_buffer.append(to_file)
 	
 	for dir in DirAccess.get_directories_at(from_path):
 		dir = dir.lstrip("/").rstrip("/")
-		var from_dir := (from_path.rstrip("/") + "/" + dir).rstrip("/")
-		var to_dir := (to_path.rstrip("/") + "/" + dir).rstrip("/")
+		var from_dir := (from_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
+		var to_dir := (to_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
 		
 		if (from_dir != to_dir and
-			Array(ignore_folders).all(func (p:String): return not from_dir.begins_with(p))
-		   ):
-			var err := copy_recursive(from_dir, to_dir, ignore_folders)
+			Array(ignore_folders).all(func (p:String): return not from_path.get_slice("://", 1) in p)
+			):
+			var err := copy_recursive(from_dir, to_dir, ignore_folders, max_files, delete_on_fail, successfully_copied_buffer)
 			if err != OK:
+				# no need to panic delete, the recursive call will can do that itself,
+				# the successfully_copied_buffer is shared 2 ways after all
 				return err
+			else:
+				successfully_copied_buffer.append(to_dir)
+		if max_files > 0:
+			max_files = max(0, max_files - DirAccess.get_files_at(from_dir).size())
 		ignore_folders.append(to_dir)
 
 	return OK
 
-## Fetches a icon form the editor's theme
-static func get_editor_icon_named(name:String, manual_size:=Vector2i.ONE) -> Texture2D:
-	assert(Engine.is_editor_hint())
+## Deletes all files and directories from [param path].
+## When an error occurs, this function may leave files and folders undeleted.
+## The array in [param successfully_removed_buffer] will have all the paths that were removed without any errors appended to it.
+## NOTE: Depending on the size of data being moved,
+## this function can freeze the editor for some time.
+static func delete_recursive(path:String, successfully_removed_buffer := PackedStringArray()) -> int:
+	var err:int = FAILED
+	if DirAccess.dir_exists_absolute(path):
+		# first files then directories,
+		# otherwise errors are thrown for non-empty directories being deleted
+		for p in DirAccess.get_files_at(path) + DirAccess.get_directories_at(path):
+			err = delete_recursive(path.path_join(p), successfully_removed_buffer)
+			if err != OK:
+				break
+		err = DirAccess.remove_absolute(path)
+	elif FileAccess.file_exists(path):
+		err = DirAccess.remove_absolute(path)
+	else:
+		err = ERR_FILE_NOT_FOUND
 	
-	var theme := EditorInterface.get_editor_theme()
+	if err == OK:
+		successfully_removed_buffer.append(path)
+	return err
+
+## Attempts to recycle a file, falling back to deleting recursively (as moving a directory to the recycling is inherently recursive) it in case that fails for whatever reason (ex. the filesystem does not support it, the OS doesn't support it, etc.)
+static func try_recycle_or_delete(path:String) -> int:
+	var err := OS.move_to_trash(path)
+	if err == OK:
+		return err
+	return delete_recursive(path)
+
+## Attempts to copy files from [param from] to [param to] recursively; before deleting [param from] recursively.
+## When [param undo_partial_copy] is set and an error occurs when copying, all files successfully created from copying will be removed first.
+## Otherwise, a error happening during copying will result in any successfully coped files to remain where they were.
+static func move_recursive(from:String,
+						   to:String,
+						   ignore_folders:=PackedStringArray(),
+						   max_files:int = -1,
+						   delete_on_fail := true,
+						   successfully_moved_buffer := PackedStringArray()) -> int:
+	var err := copy_recursive(from, to, ignore_folders, max_files, delete_on_fail, successfully_moved_buffer)
+	if err == OK:
+		err = delete_recursive(from)
+		if err != OK:
+			#still try to blindly cleanup everything else that was moved first, lets hope that that error was only specific to a single part of the path and doesn't apply to the other stuff moved
+			for p in successfully_moved_buffer:
+				delete_recursive(from)
+	return err
+
+## Convert a url into a form that is relevant outside this application. For example, all res://, user://, and uid:// urls are converted to their file path forms, and all identifiable file paths without the proper scheme will have the file:// scheme applied to them. This allows for functions like [method OS.shell_open] to compatibly open more types of urls, and ensures that paths are wrapped safely, to avoid potentail malicious url collisions
+static func normalized_url(url:String, file_relative_base := "") -> String:
+	var exe_dir := OS.get_executable_path().get_base_dir()
+	var usr_dir := OS.get_user_data_dir()
+	var drive_list:Array = range(DirAccess.get_drive_count()).map(DirAccess.get_drive_name).filter(func (s): return s != "")
+
+	if file_relative_base == "":
+		file_relative_base = exe_dir
+
+	#lets manually normalize file paths without the "file://" scheme prefix to help improve the selection of using the browser manually 
+	var file_mode := url.begins_with("file://")
+
+	if url.begins_with("res://") or url.begins_with("uid://"):
+		file_mode = true
+		if Engine.is_editor_hint():
+			url = ProjectSettings.globalize_path(url)
+		elif ResourceLoader.exists(url): #resource paths aren't as simple as being relative to some directory, we need to check with te resource loader
+			url = ResourceLoader.load(url, "", ResourceLoader.CACHE_MODE_REUSE).resource_path
+			assert (DirAccess.dir_exists_absolute(url) or DirAccess.dir_exists_absolute(url.get_base_dir()))
+	
+	if url.begins_with("user://"):
+		file_mode = true
+		if Engine.is_editor_hint(): #sure, test builds might have acess to the ProjectSettings class to, but you make debug builds to debug how it acts on potentially non editor devices...
+			url = ProjectSettings.globalize_path(url)
+		else:
+			url = usr_dir.path_join(url.get_slice("://", 1))
+	
+	if url.is_absolute_path() and DirAccess.dir_exists_absolute(url):
+		file_mode = true
+	elif url.is_relative_path():
+		if DirAccess.dir_exists_absolute(usr_dir.path_join(url)):
+			url = usr_dir.path_join(url)
+			file_mode = true
+	#NOTE [b]all[/b] possible urls don't [i]need[/i] to contain "://" exactly to be valid, but valid windows file paths may also contain ":/", so we should only use this to guard against wild collision between valid urls and paths
+	elif "://" in url and drive_list.any(func (s): url.begins_with(s)):
+		file_mode = true
+	
+	if file_mode:
+		while "://" in url:
+			url = url.get_slice("://", 1)
+		url = "file://" + url
+
+	return url
+
+## Take a url, as if it is normalized (using [method normalized_url]) into a file url, return the path from that url.
+## OTherwise, return [param default].
+## This helps normalize res://, user://, and uid:// paths sensibly while also allowing for safe parsing of file:// urls and paths
+static func url_get_file(url:String, default := "") -> String:
+	url = normalized_url(url)
+	if not "://" in url:
+		return default
+	var s := url.split(":/", true, 1)
+	if s[0] != "file":
+		return default
+	return s[1]
+
+## Open a url on the system, always converting res://, user:// and uid:// paths into their respective file system paths before then attempting to open any possible valid file paths in the system file browser first, before falling back to the os's choice for program in the case opening it in the file manager fails
+static func open_uri_file_fixed(url:String, view_into_folders := false):
+	url = normalized_url(url)
+
+	var err := OS.shell_show_in_file_manager(url.get_slice("://", 1), view_into_folders)
+	if url.begins_with("file://") and err == OK:
+		return err
+	return OS.shell_open(url)
+
+## Gets the theme that is closes to the editor's theme, including when this isn't actually the editor. In the case this has no editor theme, it will then attempt to fall back to the project theme before falling back to the default theme.
+static func get_most_relevant_editor_theme() -> Theme:
+	var theme:Theme = null
+	if Engine.is_editor_hint():
+		theme = EditorInterface.get_editor_theme()
 	if theme == null:
 		theme = ThemeDB.get_project_theme()
 	if theme == null:
 		theme = ThemeDB.get_default_theme()
-	assert(theme != null)
-	
-	assert(theme.has_icon(name, EDITOR_ICONS_THEME_TYPE))
+	return theme
+
+## Check if the [enum Variant.Type] enum value [param type] is some from of "Packed Array". Note that this check uses the string name of the variant type to determine if its a packed array or not, so this may be compatible with other extention that provide more packed array types
+static func typeof_is_packed_array(type:int) -> bool:
+	var s := type_string(type)
+	return (s.begins_with("Packed") and s.ends_with("Array") and s.length() > ("Packed".length() + "Array".length()))
+
+## Check if the [enum Variant.Type] enum value [param type] is some from "Array", either by being [constant Variant.TYPE_ARRAY] or by [method typeof_is_packed_array] returning true.
+static func typeof_is_any_array(type:int) -> bool:
+	return type == TYPE_ARRAY or typeof_is_packed_array(type)
+
+## A method focused on taking in the many ways enums in godot can be referenced and returning a [Dictionary] that corelates enum's names to the enum's values.
+## When using gdscript and referring to constant dictionaries or enums also defined in other non-extension scripts, it's possible to acess them like any other constant property in a class (using it like a dictionary as is)
+## however, is not consistent between versions or classes that are defined in [Script]s compared to classes defined in the [ClassDB].
+## This method attempts to simplify that by allowing for all types of enums to be retrieved in their dictionary form simply by providing the class's name and the enum's name in that class.
+## This method will also consistently return enums that can also be inherited from parrent classes regardless of if the parent is a [Script] or a [ClassDB] defined class (or both, in the case that is ever possible).
+## While [param name_or_object] accepts many diffrent way to refer to a class, the most consistent (and suggested) method is to
+## supply the class's name (or the path to the script if the script is an unnamed class) to [param name_or_object] and the enum's name to [param enum_name].
+## However, the following are also acceptable way to look up enums:
+## [ul]
+## If [param name_or_object] is a [Dictionary] that dictionary will be returned verbatim (while still [param enforce_values_of_int], if set). This is the only situation where [param enum_name] is entirely unused, and therefore ignored.
+## If [param name_or_object] is a [Object] that's not a [Script], it will reference that object's class and potentially attached [Script] if possible for enums instead.
+## If [param name_or_object] is a [Script], that script's will be used for getting finding the enum.
+## [/ul]
+## Setting [param enforce_values_of_int] will assert that the returned enum must have values of the [int] type. While typically this isn't a concern,
+## since [Script]'s enums are only defined as constant dictionaries,
+## making it technically possible for typos of names to include dictionaries with non-[int] values.
+## While [param enforce_values_of_int] defaults to [code]true[/code], it can be disabled for a menial speed boost when calling this method.
+## This methods is indended for use with methods like [make_int_enum_hint_string] or other means handling exported enum values in the inspector.
+static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_values_of_int := true) -> Dictionary:
+	if typeof(name_or_object) == TYPE_DICTIONARY: #how passing in a gdscript enum type should (hopefully) work
+		if enforce_values_of_int:
+			assert(name_or_object.values().all(func (v): return typeof(v) == TYPE_INT))
+		return name_or_object
+	elif typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME, TYPE_OBJECT]:
+		assert(enum_name != "")
+
+		var ret := {}
+
+		var cls_name:String = ""
+		if typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME]:
+			cls_name = name_or_object
+		elif name_or_object is Script:
+			cls_name = get_class_name(name_or_object)
+		else:
+			cls_name = name_or_object.get_class()
+		if ClassDB.class_exists(cls_name) and ClassDB.class_has_enum(cls_name, enum_name, false):
+			var names := ClassDB.class_get_enum_constants(cls_name, enum_name, false)
+			for n in names:
+				ret[n] = ClassDB.class_get_integer_constant(cls_name, n)
+
+		var script:Script = null
+		if typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME]:
+			var script_path := script_path_normalize(name_or_object)
+			if not script_path.is_empty() and ResourceLoader.exists(script_path, "Script"):
+				script = load(script_path)
+		elif name_or_object is Script:
+			script = name_or_object
+		else:
+			script = name_or_object.get_script()
+		if script != null:
+			if not script.get_class().is_empty():
+				ret.merge(enum_extract_dict(script.get_class(), enum_name, enforce_values_of_int))
+			if script.get_base_script() != null:
+				ret.merge(enum_extract_dict(script.get_base_script(), enum_name, enforce_values_of_int))
+			var cm := script.get_script_constant_map()
+			for cn in cm.keys():
+				var c = cm[cn]
+				if cn == enum_name and typeof(c) == TYPE_DICTIONARY:
+					ret.merge(enum_extract_dict(c, enum_name, enforce_values_of_int))
+		return ret
+	assert(false)
+	return {} #Never reached, but code parsing needs a fallback from an assert anyway
+
+## Takes a list of enums (in the form of a dictionary with [String] keys, another array (packed or otherwise) of string enum names, or string enum names directly)
+## And attempts to merge them all into a single hint_string, indended for use in
+## property lists with the hint of [constant PROPERTY_HINT_ENUM_SUGGESTION].
+## This will [method assert] that all enum's the names (ignoring the values all together, if even provided)
+## has no common names with any other.
+static func make_string_suggestion_enum_hint_string(enum_dicts:Array[Variant]) -> String:
+	var ns:Array = []
+	for v in enum_dicts:
+		var ks = null
+		match(typeof(v)):
+			TYPE_DICTIONARY:
+				ks = v.keys()
+			TYPE_PACKED_STRING_ARRAY, TYPE_ARRAY:
+				ks = v
+			TYPE_STRING, TYPE_STRING_NAME:
+				ks = [v]
+		assert(ks != null)
+
+		for k in ks:
+			assert(not k in ns)
+			assert(typeof(k) in [TYPE_STRING, TYPE_STRING_NAME])
+			ns.append(k)
+	return ",".join(ns)
+
+## Takes a list of enums (in the form of a dictionary of [String] keys and [int] values)
+## And attempts to merge them all into a single hint_string, indended for use in
+## property lists with the hint of [constant PROPERTY_HINT_ENUM].
+## This will [method assert] that all enum's the values (but not names)
+## has no common values with any other.
+## For converting an enum into it's [Dictionary] form consistently, see [method enum_extract_dict].
+## Note that this is intended specifically for use with [constant PROPERTY_HINT_ENUM].
+## For [constant PROPERTY_HINT_ENUM_SUGGESTION], use [method make_string_suggestion_enum_hint_string].
+static func make_int_enum_hint_string(enum_dicts:Array[Dictionary]) -> String:
+	var dc := {}
+	for d in enum_dicts:
+		for k in d.keys():
+			var v = d[k]
+			assert(v not in dc.keys())
+			dc[v] = k
+	var ret := PackedStringArray()
+	for k in dc.keys():
+		ret.append(dc[k] + ":" + str(k))
+	return ",".join(ret)
+
+## An enum made specifically for use with the [method get_debug_info] function.
+## Note that the values are specifically started [b]after[/b] the [constant Performance.MONITOR_MAX]
+## value, to allow for values for this enum to be used along side values form the [enum Performance.Monitor] enum
+## without further ambiguity.
+## Also note that values in this enum start [b]after[/b] [constant Performance.MONITOR_MAX] and not at
+## [constant Performance.MONITOR_MAX], in case this max value
+## ends up used for some purpose beyond simply signifying the maximum value
+## (a choice sometimes made in other godot engine functions).
+enum DebugInfoTypes{
+	RUN_IS_DEBUG = Performance.MONITOR_MAX + 1,
+	RUN_IS_TEMPLATE,
+	RUN_IS_EDITOR,
+	RUN_IS_EDITOR_EMBEDDED,
+	RUN_IS_VERBOSE,
+	RUN_IS_USER_FS_PERSISTENT,
+	RUN_SCRIPT_LANGUAGE_NAMES,
+	RUN_SINGLETON_NAMES,
+	RUN_IS_FOCUSED,
+	RUN_WINDOW_MODE,
+	RUN_USER_DIRECTORY,
+	RUN_EXE_DIRECTORY,
+	RUN_MAIN_LOOP_TYPE,
+	RUN_LOW_PROCESSOR_MODE,
+	RUN_LOW_PROCESSOR_MODE_SLEEP_SEC,
+
+	PROJECT_NAME,
+	PROJECT_VERSION,
+	PROJECT_DESCRIPTION,
+	PROJECT_AUTO_ACCEPT_QUIT,
+	PROJECT_QUIT_ON_GO_BACK,
+	PROJECT_MAIN_SCENE,
+	PROJECT_MAIN_LOOP_TYPE,
+
+	OS_NAME,
+	OS_DISTROBUTION_NAME_OR_NAME,
+	OS_NAME_WITH_DISTROBUTION,
+	OS_MODEL_NAME,
+	OS_PROCESSOR_NAME,
+	OS_DEVICE_UUID,
+	OS_VERSION_NUMBER,
+	OS_VERSION_alias_OR_NUMBER,
+	OS_BROWSER_OS,
+	OS_GRANTED_PERMISSIONS,
+	OS_architecture_NAME,
+	OS_CPU_COUNT,
+	OS_WINDOW_SERVER_NAME,
+
+	MAIN_THREAD_ID,
+	MAIN_PROCESS_ID,
+
+	LOCALE_LANG,
+	LOCALE_SCRIPT,
+	LOCALE_COUNTRY,
+	LOCALE_VARIANT,
+	LOCALE_EXTRAS,
+
+	TRANSLATION_SERVER_LOCALE,
+	TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE,
+	TRANSLATION_SERVER_LOCALE_NAME,
+	TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE_NAME,
+
+	TEXT_SERVER_NAME,
+	TEXT_SERVER_SUPPORT_DATA_INFO,
+	TEXT_SERVER_FEATURES,
+	TEXT_SERVER_FEATURE_SIMPLE_LAYOUT,
+	TEXT_SERVER_FEATURE_BIDI_LAYOUT,
+	TEXT_SERVER_FEATURE_VERTICAL_LAYOUT,
+	TEXT_SERVER_FEATURE_SHAPING,
+	TEXT_SERVER_FEATURE_KASHIDA_JUSTIFICATION,
+	TEXT_SERVER_FEATURE_BREAK_ITERATORS,
+	TEXT_SERVER_FEATURE_FONT_BITMAP,
+	TEXT_SERVER_FEATURE_FONT_DYNAMIC,
+	TEXT_SERVER_FEATURE_FONT_MSDF,
+	TEXT_SERVER_FEATURE_FONT_SYSTEM,
+	TEXT_SERVER_FEATURE_FONT_VARIABLE,
+	TEXT_SERVER_FEATURE_CONTEXT_SENSITIVE_CASE_CONVERSION,
+	TEXT_SERVER_FEATURE_USE_SUPPORT_DATA,
+	TEXT_SERVER_FEATURE_UNICODE_IDENTIFIERS,
+	TEXT_SERVER_FEATURE_UNICODE_SECURITY,
+
+	VIDEO_BACKEND_NAME,
+	VIDEO_BACKEND_METHOD,
+	VIDEO_ADAPTER_NAME,
+	VIDEO_ADAPTER_VERSION,
+	VIDEO_ADAPTER_TYPE,
+	VIDEO_ADAPTER_VENDOR,
+	VIDEO_FEATURES_S3TC,
+	VIDEO_FEATURES_ETC,
+	VIDEO_FEATURES_ETC2,
+	VIDEO_MAX_FPS,
+
+	AUDIO_DRIVER_NAME,
+	AUDIO_BUS_COUNT,
+	AUDIO_SPEAKER_MODE,
+	AUDIO_PLAYBACK_SCALE,
+	AUDIO_INPUT_SAMPLE_RATE,
+	AUDIO_OUTPUT_SAMPLE_RATE,
+	AUDIO_INPUT_DEVICE_NAME,
+	AUDIO_OUTPUT_DEVICE_NAME,
+
+	CAMERA_IS_MONITORING_FEEDS,
+	CAMERA_FEED_COUNT,
+
+	PHYSICS_MAX_STEP_PER_FRAME,
+	PHYSICS_JITTER_FIX,
+	PHYSICS_TIME_SCALE,
+
+	INPUT_TOUCH_FROM_MOUSE,
+	INPUT_MOUSE_FROM_TOUCH,
+	INPUT_USE_ACCUMULATED_INPUT,
+	INPUT_IS_ANYTHING_PRESSED,
+	INPUT_MOUSE_BUTTON_MASK,
+	INPUT_MOUSE_SCREEN_POSITION,
+	INPUT_CONNECTED_JOYPAD_INDEXES,
+	INPUT_CONNECTED_JOYPAD_GUIDS,
+	INPUT_CONNECTED_JOYPAD_NAMES,
+	INPUT_CONNECTED_JOYPAD_NAME_MAPPING,
+	INPUT_CONNECTED_JOYPAD_KNOWN_MAPPING,
+	INPUT_CONNECTED_JOYPADS_COUNT,
+	INPUT_ACCELEROMETER,
+	INPUT_GRAVITY,
+	INPUT_GYROSCOPE,
+	INPUT_MAGNETOMETER,
+
+	XR_INTERFACE_COUNT,
+	XR_INTERFACE_NAMES,
+
+	ENGINE_VERSION,
+	ENGINE_VERSION_MAJOR,
+	ENGINE_VERSION_MINOR,
+	ENGINE_VERSION_PATCH,
+	ENGINE_VERSION_HEX,
+	ENGINE_VERSION_STATUS,
+	ENGINE_VERSION_BUILD,
+	ENGINE_VERSION_TIMESTAMP,
+	ENGINE_AUTHOR_INFO,
+	ENGINE_COPYRIGHT_INFO,
+	ENGINE_DONOR_INFO,
+	ENGINE_LICENCE_INFO,
+}
+
+## A function intended for use in debug logging and displays;
+## it first checks if the [param name_or_id] is the name of a custom [Performance]
+## monitor, or if its the intiger index of a [enum Performance.Monitor], and if found,
+## returns that performance monitor value.
+## Otherwise, it will then expect the [param name_or_id] to be
+## a intiger value corelating to [enum DebugInfoTypes].
+## If nothing else applies, then [param default] is returned
+## Note how the [enum DebugInfoTypes] enum is made specifically to avoid
+## any common values with the [enum Performance.Monitor] enum,
+## so you are safe to use either kind of value without further specification.
+static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Variant:
+	if typeof(name_or_id) in [TYPE_STRING_NAME, TYPE_STRING] and Performance.has_custom_monitor(name_or_id):
+		return Performance.get_custom_monitor(name_or_id)
+	elif typeof(name_or_id) == TYPE_INT:
+		match(name_or_id):
+			var mon when mon in enum_extract_dict("Performance", "Monitor").values():
+				return Performance.get_monitor(mon)
+
+			DebugInfoTypes.RUN_IS_DEBUG:
+				return OS.is_debug_build()
+			DebugInfoTypes.RUN_IS_TEMPLATE:
+				return OS.has_feature("template")
+			DebugInfoTypes.RUN_IS_EDITOR:
+				return Engine.is_editor_hint()
+			DebugInfoTypes.RUN_IS_EDITOR_EMBEDDED:
+				return Engine.is_embedded_in_editor()
+			DebugInfoTypes.RUN_IS_VERBOSE:
+				return OS.is_stdout_verbose()
+			DebugInfoTypes.RUN_IS_USER_FS_PERSISTENT:
+				return OS.is_userfs_persistent()
+			DebugInfoTypes.RUN_SCRIPT_LANGUAGE_NAMES:
+				return PackedStringArray(range(Engine.get_script_language_count()).map(func (si): return Engine.get_script_language(si).get_class()))
+			DebugInfoTypes.RUN_SINGLETON_NAMES:
+				return Engine.get_singleton_list()
+			DebugInfoTypes.RUN_IS_FOCUSED:
+				return Engine.get_main_loop().root.has_focus()
+			DebugInfoTypes.RUN_WINDOW_MODE:
+				return Engine.get_main_loop().root.mode
+			DebugInfoTypes.RUN_USER_DIRECTORY:
+				return OS.get_user_data_dir()
+			DebugInfoTypes.RUN_EXE_DIRECTORY:
+				return OS.get_executable_path().get_base_dir()
+			DebugInfoTypes.RUN_MAIN_LOOP_TYPE:
+				return Engine.get_main_loop().get_class()
+			DebugInfoTypes.RUN_LOW_PROCESSOR_MODE:
+				return OS.low_processor_usage_mode
+			DebugInfoTypes.RUN_LOW_PROCESSOR_MODE_SLEEP_SEC:
+				return OS.low_processor_usage_mode_sleep_usec / 1000000
+			
+			DebugInfoTypes.PROJECT_NAME:
+				return ProjectSettings.get_setting("application/config/name", "")
+			DebugInfoTypes.PROJECT_VERSION:
+				return ProjectSettings.get_setting("application/config/version", "")
+			DebugInfoTypes.PROJECT_DESCRIPTION:
+				return ProjectSettings.get_setting("application/config/description", "")
+			DebugInfoTypes.PROJECT_AUTO_ACCEPT_QUIT:
+				return ProjectSettings.get_setting("application/config/auto_accept_quit", null)
+			DebugInfoTypes.PROJECT_QUIT_ON_GO_BACK:
+				return ProjectSettings.get_setting("application/config/quit_on_go_back", null)
+			DebugInfoTypes.PROJECT_MAIN_SCENE:
+				return ProjectSettings.get_setting("application/run/main_scene", "")
+			DebugInfoTypes.PROJECT_MAIN_LOOP_TYPE:
+				return ProjectSettings.get_setting("application/run/main_loop_type", "")
+			
+			DebugInfoTypes.OS_NAME:
+				return OS.get_name()
+			DebugInfoTypes.OS_DISTROBUTION_NAME_OR_NAME:
+				return OS.get_distribution_name() if OS.get_distribution_name() != "" else OS.get_name()
+			DebugInfoTypes.OS_NAME_WITH_DISTROBUTION:
+				return ("%s (%s)" % [OS.get_name(), OS.get_distribution_name()]) if (OS.get_distribution_name() != "" and OS.get_distribution_name() != OS.get_name()) else OS.get_name()
+			DebugInfoTypes.OS_MODEL_NAME:
+				return OS.get_model_name()
+			DebugInfoTypes.OS_PROCESSOR_NAME:
+				return OS.get_processor_name()
+			DebugInfoTypes.OS_DEVICE_UUID:
+				return OS.get_unique_id()
+			DebugInfoTypes.OS_VERSION_NUMBER:
+				return OS.get_version()
+			DebugInfoTypes.OS_VERSION_alias_OR_NUMBER:
+				return OS.get_version_alias()
+			DebugInfoTypes.OS_BROWSER_OS:
+				if OS.has_feature("web_android"):
+					return "web_android"
+				if OS.has_feature("web_ios"):
+					return "web_ios"
+				if OS.has_feature("web_macos"):
+					return "web_macos"
+				if OS.has_feature("web_windows"):
+					return "web_windows"
+				if OS.has_feature("web_linuxbsd"):
+					return "web_linuxbsd"
+				if OS.has_feature("web"):
+					return "web"
+				return null
+			DebugInfoTypes.OS_GRANTED_PERMISSIONS:
+				return OS.get_granted_permissions()
+			DebugInfoTypes.OS_architecture_NAME:
+				return OS.get_processor_name()
+			DebugInfoTypes.OS_CPU_COUNT:
+				return OS.get_processor_count()
+			DebugInfoTypes.OS_WINDOW_SERVER_NAME:
+				return DisplayServer.get_name()
+			
+			DebugInfoTypes.LOCALE_LANG:
+				return OS.get_locale_language()
+			DebugInfoTypes.LOCALE_SCRIPT:
+				return OS.get_locale().get_slice("_", 1)
+			DebugInfoTypes.LOCALE_COUNTRY:
+				return OS.get_locale().get_slice("_", 2)
+			DebugInfoTypes.LOCALE_VARIANT:
+				return OS.get_locale().get_slice("_", 3).get_slice("@", 0)
+			DebugInfoTypes.LOCALE_EXTRAS:
+				return OS.get_locale().get_slice("_", 3).get_slice("@", 1).split(";")
+			
+			DebugInfoTypes.TRANSLATION_SERVER_LOCALE:
+				return TranslationServer.get_locale()
+			DebugInfoTypes.TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE:
+				return TranslationServer.get_tool_locale()
+			DebugInfoTypes.TRANSLATION_SERVER_LOCALE_NAME:
+				return TranslationServer.get_locale_name(TranslationServer.get_locale())
+			DebugInfoTypes.TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE_NAME:
+				return TranslationServer.get_locale_name(TranslationServer.get_tool_locale())
+			
+			DebugInfoTypes.TEXT_SERVER_NAME:
+				return TextServerManager.get_primary_interface().get_name()
+			DebugInfoTypes.TEXT_SERVER_SUPPORT_DATA_INFO:
+				return TextServerManager.get_primary_interface().get_support_data_info()
+			DebugInfoTypes.TEXT_SERVER_FEATURES:
+				return TextServerManager.get_primary_interface().get_features()
+			DebugInfoTypes.TEXT_SERVER_FEATURE_SIMPLE_LAYOUT:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_SIMPLE_LAYOUT)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_BIDI_LAYOUT:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_BIDI_LAYOUT)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_VERTICAL_LAYOUT:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_VERTICAL_LAYOUT)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_SHAPING:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_SHAPING)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_KASHIDA_JUSTIFICATION:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_KASHIDA_JUSTIFICATION)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_BREAK_ITERATORS:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_BREAK_ITERATORS)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_FONT_BITMAP:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_FONT_BITMAP)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_FONT_DYNAMIC:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_FONT_DYNAMIC)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_FONT_MSDF:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_FONT_MSDF)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_FONT_SYSTEM:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_FONT_SYSTEM)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_FONT_VARIABLE:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_FONT_VARIABLE)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_CONTEXT_SENSITIVE_CASE_CONVERSION:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_CONTEXT_SENSITIVE_CASE_CONVERSION)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_USE_SUPPORT_DATA:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_USE_SUPPORT_DATA)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_UNICODE_IDENTIFIERS:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_UNICODE_IDENTIFIERS)
+			DebugInfoTypes.TEXT_SERVER_FEATURE_UNICODE_SECURITY:
+				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_UNICODE_SECURITY)
+		
+			DebugInfoTypes.MAIN_THREAD_ID:
+				return OS.get_main_thread_id()
+			DebugInfoTypes.MAIN_PROCESS_ID:
+				return OS.get_process_id()
+
+			DebugInfoTypes.VIDEO_BACKEND_NAME:
+				return RenderingServer.get_current_rendering_driver_name()
+			DebugInfoTypes.VIDEO_BACKEND_METHOD:
+				return RenderingServer.get_current_rendering_method()
+			DebugInfoTypes.VIDEO_ADAPTER_NAME:
+				return RenderingServer.get_video_adapter_name()
+			DebugInfoTypes.VIDEO_ADAPTER_VERSION:
+				return RenderingServer.get_video_adapter_api_version()
+			DebugInfoTypes.VIDEO_ADAPTER_TYPE:
+				if RenderingServer.get_rendering_device() == null:
+					return null
+				return RenderingServer.get_rendering_device().get_device_type()
+			DebugInfoTypes.VIDEO_ADAPTER_VENDOR:
+				return RenderingServer.get_video_adapter_vendor()
+			DebugInfoTypes.VIDEO_MAX_FPS:
+				return Engine.max_fps
+			DebugInfoTypes.VIDEO_FEATURES_S3TC:
+				return RenderingServer.has_os_feature("s3tc")
+			DebugInfoTypes.VIDEO_FEATURES_ETC:
+				return RenderingServer.has_os_feature("etc")
+			DebugInfoTypes.VIDEO_FEATURES_ETC2:
+				return RenderingServer.has_os_feature("etc2")
+
+			DebugInfoTypes.AUDIO_INPUT_DEVICE_NAME:
+				return AudioServer.input_device
+			DebugInfoTypes.AUDIO_OUTPUT_DEVICE_NAME:
+				return AudioServer.output_device
+			DebugInfoTypes.AUDIO_PLAYBACK_SCALE:
+				return AudioServer.playback_speed_scale
+			DebugInfoTypes.AUDIO_BUS_COUNT:
+				return AudioServer.bus_count
+			DebugInfoTypes.AUDIO_DRIVER_NAME:
+				return AudioServer.get_driver_name()
+			DebugInfoTypes.AUDIO_INPUT_SAMPLE_RATE:
+				return AudioServer.get_input_mix_rate()
+			DebugInfoTypes.AUDIO_OUTPUT_SAMPLE_RATE:
+				return AudioServer.get_mix_rate()
+			DebugInfoTypes.AUDIO_SPEAKER_MODE:
+				return AudioServer.get_speaker_mode()
+
+			DebugInfoTypes.CAMERA_IS_MONITORING_FEEDS:
+				return CameraServer.monitoring_feeds
+			DebugInfoTypes.CAMERA_FEED_COUNT:
+				return CameraServer.get_feed_count()
+			
+			DebugInfoTypes.PHYSICS_MAX_STEP_PER_FRAME:
+				return Engine.physics_ticks_per_second
+			DebugInfoTypes.PHYSICS_JITTER_FIX:
+				return Engine.physics_jitter_fix
+			DebugInfoTypes.PHYSICS_TIME_SCALE:
+				return Engine.time_scale
+
+			DebugInfoTypes.INPUT_TOUCH_FROM_MOUSE:
+				return Input.is_emulating_touch_from_mouse()
+			DebugInfoTypes.INPUT_MOUSE_FROM_TOUCH:
+				return Input.is_emulating_mouse_from_touch()
+			DebugInfoTypes.INPUT_USE_ACCUMULATED_INPUT:
+				return Input.use_accumulated_input
+			DebugInfoTypes.INPUT_IS_ANYTHING_PRESSED:
+				return Input.is_anything_pressed()
+			DebugInfoTypes.INPUT_MOUSE_BUTTON_MASK:
+				return Input.get_mouse_button_mask()
+			DebugInfoTypes.INPUT_MOUSE_SCREEN_POSITION:
+				return DisplayServer.mouse_get_position()
+			DebugInfoTypes.INPUT_CONNECTED_JOYPAD_INDEXES:
+				return Input.get_connected_joypads()
+			DebugInfoTypes.INPUT_CONNECTED_JOYPAD_GUIDS:
+				return Input.get_connected_joypads().map(Input.get_joy_guid)
+			DebugInfoTypes.INPUT_CONNECTED_JOYPAD_NAMES:
+				return Input.get_connected_joypads().map(Input.get_joy_name)
+			DebugInfoTypes.INPUT_CONNECTED_JOYPAD_NAME_MAPPING:
+				var result = {}
+				for i in Input.get_connected_joypads():
+					result[i] = Input.get_joy_name(i)
+				return result
+			DebugInfoTypes.INPUT_CONNECTED_JOYPAD_KNOWN_MAPPING:
+				var result = {}
+				for i in Input.get_connected_joypads():
+					result[i] = Input.is_joy_known(i)
+				return result
+			DebugInfoTypes.INPUT_CONNECTED_JOYPADS_COUNT:
+				return Input.get_connected_joypads().size()
+			DebugInfoTypes.INPUT_ACCELEROMETER:
+				return Input.get_accelerometer()
+			DebugInfoTypes.INPUT_GRAVITY:
+				return Input.get_gravity()
+			DebugInfoTypes.INPUT_GYROSCOPE:
+				return Input.get_gyroscope()
+			DebugInfoTypes.INPUT_MAGNETOMETER:
+				return Input.get_magnetometer()
+
+			DebugInfoTypes.XR_INTERFACE_COUNT:
+				return XRServer.get_interface_count()
+			DebugInfoTypes.XR_INTERFACE_NAMES:
+				var interfaces = []
+				for i in range(XRServer.get_interface_count()):
+					interfaces.append(XRServer.get_interface(i).get_name())
+				return interfaces
+
+			DebugInfoTypes.ENGINE_VERSION:
+				return Engine.get_version_info()
+			DebugInfoTypes.ENGINE_VERSION_MAJOR:
+				return Engine.get_version_info().get("major", 0)
+			DebugInfoTypes.ENGINE_VERSION_MINOR:
+				return Engine.get_version_info().get("minor", 0)
+			DebugInfoTypes.ENGINE_VERSION_PATCH:
+				return Engine.get_version_info().get("patch", 0)
+			DebugInfoTypes.ENGINE_VERSION_HEX:
+				return Engine.get_version_info().get("hex", 0)
+			DebugInfoTypes.ENGINE_VERSION_STATUS:
+				return Engine.get_version_info().get("status", "")
+			DebugInfoTypes.ENGINE_VERSION_BUILD:
+				return Engine.get_version_info().get("build", "")
+			DebugInfoTypes.ENGINE_VERSION_TIMESTAMP:
+				return Engine.get_version_info().get("timestamp", 0)
+			DebugInfoTypes.ENGINE_AUTHOR_INFO:
+				return Engine.get_author_info()
+			DebugInfoTypes.ENGINE_COPYRIGHT_INFO:
+				return Engine.get_copyright_info()
+			DebugInfoTypes.ENGINE_DONOR_INFO:
+				return Engine.get_donor_info()
+			DebugInfoTypes.ENGINE_LICENCE_INFO:
+				return Engine.get_license_info()
+
+	return default
+
+## Fetches an editor icon form the most relevant editor theme.
+static func get_editor_icon_named(name:String, manual_size := -Vector2i.ONE) -> Texture2D:
+	var theme = get_most_relevant_editor_theme()
+
+	if theme == null || theme.has_icon(name, EDITOR_ICONS_THEME_TYPE):
+		return null
 	
 	var texture := theme.get_icon(name, EDITOR_ICONS_THEME_TYPE)
-	
-	if manual_size != texture.get_image().get_size():
+	var og_size := texture.get_image().get_size()
+	if manual_size.x < 0:
+		manual_size.x = og_size.x
+	if manual_size.y < 0:
+		manual_size.y = og_size.y
+
+	if manual_size != og_size:
 		texture = texture.duplicate()
 		texture.set_size_override(manual_size)
 	
