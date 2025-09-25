@@ -21,7 +21,7 @@ TreeWatcher="*res://addons/novatools/tree_watcher.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/novatools/plugin.cfg")
+enabled=PackedStringArray("res://addons/gut/plugin.cfg", "res://addons/novatools/plugin.cfg")
 
 [rendering]
 
