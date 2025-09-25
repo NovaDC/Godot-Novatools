@@ -43,14 +43,14 @@ func _export_begin(features:PackedStringArray, is_debug:bool, path:String, flags
 	_current_export_path = path
 	_current_export_flags = flags
 	_export_begin_tool(_current_export_features,
-					   _current_export_is_debug,
-					   _current_export_path,
-					   _current_export_flags)
+						_current_export_is_debug,
+						_current_export_path,
+						_current_export_flags)
 
 # Intended to be a sealed method.
 func _export_end():
 	_export_end_tool(_current_export_features,
-					 _current_export_is_debug,
-					 _current_export_path,
-					 _current_export_flags)
+					_current_export_is_debug,
+					_current_export_path,
+					_current_export_flags)
 	_is_exporting = false

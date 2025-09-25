@@ -7,13 +7,13 @@ extends EditorExportPlatformExtension
 ## A base class extending [class EditorExportPlatformExtension] used for making
 ## tool export platforms (export platforms that call tools instead of exporting the project).
 
-## The newline seporator used in config error messages.
+## The newline separator used in config error messages.
 const ERR_MESSAGE_NEWLINE := "\n"
 
-func _has_valid_project_configuration(preset: EditorExportPreset):
+func _has_valid_project_configuration(_preset:EditorExportPreset):
 	return true
 
-func _has_valid_export_configuration(preset: EditorExportPreset, debug: bool):
+func _has_valid_export_configuration(preset:EditorExportPreset, debug:bool):
 	var preset_ok := true
 	if preset.is_runnable():
 		add_config_error(self._get_name().capitalize() + " cannot be runnable.")
@@ -35,30 +35,30 @@ func _has_valid_export_configuration(preset: EditorExportPreset, debug: bool):
 		preset_ok = false
 	return preset_ok
 
-func _can_export(preset: EditorExportPreset, debug: bool):
-	return (_has_valid_export_configuration(preset, debug) 
+func _can_export(preset:EditorExportPreset, debug:bool):
+	return (_has_valid_export_configuration(preset, debug)
 			and _has_valid_project_configuration(preset)
-		   )
-	
-func _is_executable(path:String):
+			)
+
+func _is_executable(_path:String):
 	return false
 
-func _get_binary_extensions(preset: EditorExportPreset):
+func _get_binary_extensions(_preset:EditorExportPreset):
 	return PackedStringArray()
 
 # DO NOT OVERRIDE THIS METHOD WHEN EXTENDING
-func _export_project(preset: EditorExportPreset,
-					 debug: bool,
-					 path: String,
-					 flags:EditorExportPlatform.DebugFlags
+func _export_project(preset:EditorExportPreset,
+					debug:bool,
+					path:String,
+					_flags:EditorExportPlatform.DebugFlags
 					):
 	if not _can_export(preset, debug):
 		return ERR_INVALID_PARAMETER
-	
+
 	var err := await _export_hook(preset, path)
 	if err != OK:
 		return err
-	
+
 	return OK
 
 func _get_os_name():
@@ -67,10 +67,10 @@ func _get_os_name():
 func _get_platform_features():
 	return PackedStringArray([_get_name().strip_edges().to_lower().replace(" ", "")])
 
-func _get_preset_features(preset: EditorExportPreset):
+func _get_preset_features(preset:EditorExportPreset):
 	if (preset.get_or_env("post_processing_commands", "") is Array and
-	   	preset.get_or_env("post_processing_commands", "").size() > 0
-	   ):
+		preset.get_or_env("post_processing_commands", "").size() > 0
+		):
 		return PackedStringArray(["postprocessed"])
 	return PackedStringArray()
 
@@ -84,8 +84,8 @@ func add_config_error(error:String):
 	set_config_error(get_config_error() + ERR_MESSAGE_NEWLINE + error.strip_edges())
 
 ## A abstract method.[br]
-## Must be overridden when extengin this class.
-func _export_hook(preset: EditorExportPreset, path: String) -> Error:
+## Must be overridden when extending this class.
+func _export_hook(preset:EditorExportPreset, path:String) -> Error:
 	assert(false, "ABSTRACT METHOD NOT OVERRIDDEN")
 	return ERR_CANT_RESOLVE
 
@@ -94,7 +94,7 @@ func _export_hook(preset: EditorExportPreset, path: String) -> Error:
 ## [method  _has_valid_export_configuration], or [method  _has_valid_project_configuration].
 func remove_config_error(error:String):
 	var filtered_errs := Array(error.split(ERR_MESSAGE_NEWLINE))
-	filtered_errs = filtered_errs.filter(func(e:String) : return e.strip_edges() != error)
+	filtered_errs = filtered_errs.filter(func(e:String) :return e.strip_edges() != error)
 	var errs = ERR_MESSAGE_NEWLINE.join(filtered_errs)
 	errs += ERR_MESSAGE_NEWLINE + error.strip_edges()
 	set_config_error(errs)
