@@ -117,7 +117,7 @@ static func launch_external_command_async(command:String, args := [], stay_open 
 static func launch_editor_instance_async(args := [],
 										 log_file_path :=  "",
 										 stay_open := true
-										) -> Error:
+										) -> int:
 	if log_file_path != "" and GODOT_LOG_FILE_FLAG not in args:
 		args = [GODOT_LOG_FILE_FLAG, log_file_path] + args
 	if GODOT_NO_HEADER_FLAG not in args:
@@ -224,7 +224,7 @@ static func download_http_async(to_path:String,
 								headers := PackedStringArray(["User-Agent: NovaTools/1.0 (Godot)"]),
 								port:int = -1,
 								tls:TLSOptions = null
-							   ) -> Error:
+							   ) -> int:
 	print("Downloading: %s%s to %s"%[host, path, to_path])
 
 	var http_client := HTTPClient.new()
@@ -352,7 +352,7 @@ static func compress_zip_async(source_path:String,
 							   whitelist_starts:Array[String] = [],
 							   include_linked := true,
 							   compression_level:int = -2
-							  ) -> Error:
+							  ) -> int:
 
 	if compression_level <= -2:
 		compression_level = ProjectSettings.get_setting("compression/formats/zlib/compression_level")
@@ -415,7 +415,7 @@ static func compress_zip_async(source_path:String,
 	return err
 
 ## Ensures a given path exists, without throwing errors if the directory already exists.
-static func ensure_absolute_dir_exists(path:String) -> Error:
+static func ensure_absolute_dir_exists(path:String) -> int:
 	if not DirAccess.dir_exists_absolute(path):
 		return DirAccess.make_dir_recursive_absolute(path)
 	return OK
@@ -448,7 +448,7 @@ static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 
 ## Generates a [code]version.py[/code] file for this
 ## specific version of godot to the given [param to_path].
-static func generate_version_py(to_path:String) -> Error:
+static func generate_version_py(to_path:String) -> int:
 	assert(Engine.is_editor_hint())
 
 	var ver_file := FileAccess.open(to_path.path_join("version.py") , FileAccess.WRITE)
@@ -484,7 +484,7 @@ static func copy_recursive(from_path:String,
 						   max_files:int = -1,
 						   delete_on_fail := true,
 						   successfully_copied_buffer := PackedStringArray()
-						  ) -> Error:
+						  ) -> int:
 	from_path = from_path.rstrip("/")
 	to_path = to_path.rstrip("/")
 	var try_panic_delete := func():
