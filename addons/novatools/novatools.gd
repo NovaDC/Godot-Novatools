@@ -708,11 +708,47 @@ static func typeof_is_any_array(type:int) -> bool:
 ## since [Script]'s enums are only defined as constant dictionaries,
 ## making it technically possible for typos of names to include dictionaries with non-[int] values.
 ## While [param enforce_values_of_int] defaults to [code]true[/code], it can be disabled for a menial speed boost when calling this method.
-static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_values_of_int := true) -> Dictionary:
 ## This methods is indented for use with methods like [make_int_enum_hint_string] or other means handling exported enum values in the inspector.
+static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_values_of_int := true, enforce_keys_of_stringlike := true) -> Dictionary:
 	if typeof(name_or_object) == TYPE_DICTIONARY: #how passing in a gdscript enum type should (hopefully) work
+		var typed_dicts_supported:bool = Engine.get_version_info().major >= 4 and Engine.get_version_info().minor >= 4 and name_or_object.is_typed()
+
+		var kt:int = TYPE_NIL
+		if typed_dicts_supported and name_or_object.is_typed_key():
+			kt = name_or_object.get_typed_key_builtin()
+		if enforce_keys_of_stringlike:
+			if kt != TYPE_NIL: #If the keys are variant, we should check them manually
+				assert(kt in [TYPE_STRING, TYPE_STRING_NAME]) #if they are [Variant typed], which is ok when using both stringnames and strings as keys, since they are technically distinct but equally valid enum name types
+			else:
+				# humph
+				# if you don't enforce the key types
+				# then you don't get to use my super cool type fixer
+				var key_types:Array = name_or_object.keys().map(typeof)
+				var string_key_count := key_types.count(TYPE_STRING)
+				var string_name_key_count := key_types.count(TYPE_STRING_NAME)
+				assert(string_key_count + string_name_key_count == key_types.size())
+				if string_key_count == key_types.size():
+					kt = TYPE_STRING
+				elif string_name_key_count == key_types.size():
+					kt = TYPE_STRING_NAME
+				# otherwise, just leave it variant, it's allowable (though perhaps this should change later on)
+
+		var vt:int = TYPE_NIL
+		if typed_dicts_supported and name_or_object.is_typed_value():
+			vt = name_or_object.get_typed_value_builtin()
 		if enforce_values_of_int:
-			assert(name_or_object.values().all(func (v): return typeof(v) == TYPE_INT))
+			if vt != TYPE_NIL: #If the values are variant, we should check them manually
+				assert(vt == TYPE_INT) #if they are [Variant typed]
+			else:
+				assert(name_or_object.values().all(func (v): return typeof(v) == TYPE_INT))
+				vt = TYPE_INT
+
+		if typed_dicts_supported and (kt != TYPE_NIL or vt != TYPE_NIL):
+			name_or_object = Dictionary(name_or_object, kt, "", null, vt, "", null)
+			name_or_object.make_read_only()
+		elif not name_or_object.is_read_only():
+			name_or_object = name_or_object.duplicate(false)
+			name_or_object.make_read_only()
 		return name_or_object
 	elif typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME, TYPE_OBJECT]:
 		assert(enum_name != "")
@@ -722,7 +758,7 @@ static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_v
 		var cls_name:String = ""
 		# note that we don't use [get_class_name] here because we want the classdb name specifically
 		if typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME]:
-			cls_name = name_or_object
+			cls_name = str(name_or_object)
 		elif name_or_object is Script:
 			cls_name = get_class_name(name_or_object)
 		else:
@@ -778,7 +814,8 @@ static func make_string_suggestion_enum_hint_string(enum_dicts:Array[Variant]) -
 		assert(ks != null)
 
 		for k in ks:
-			assert(not k in ns)
+			if k in ns:
+				continue
 			assert(typeof(k) in [TYPE_STRING, TYPE_STRING_NAME])
 			ns.append(k)
 	return ",".join(ns)
@@ -795,6 +832,7 @@ static func make_int_enum_hint_string(enum_dicts:Array[Dictionary]) -> String:
 	var dc := {}
 	for d in enum_dicts:
 		for k in d.keys():
+			assert(typeof(k) in [TYPE_STRING, TYPE_STRING_NAME])
 			var v = d[k]
 			assert(v not in dc.keys())
 			dc[v] = k
