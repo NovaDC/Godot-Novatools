@@ -34,7 +34,7 @@ static func quick_editor_file_dialog(when_confirmed:Callable,
 									) -> String:
 	var result := ""
 	var confirmed := false
-	
+
 	var fileselect := EditorFileDialog.new()
 	fileselect.visible = false
 	fileselect.current_dir = start_path
@@ -47,7 +47,7 @@ static func quick_editor_file_dialog(when_confirmed:Callable,
 	EditorInterface.popup_dialog_centered(fileselect)
 	await fileselect.visibility_changed
 	fileselect.queue_free()
-	
+
 	return result
 
 ## Popups a simple popup in front of the editor screen, blocking any editor input,
@@ -63,25 +63,25 @@ static func show_wait_window_while_async(message:String,
 	lab.text = message
 	lab.bbcode_enabled = true
 	lab.custom_minimum_size = min_size
-	
+
 	var wind := PopupPanel.new()
 	wind.exclusive = true
 	wind.transient = true
 	wind.add_child(lab)
 	wind.popup_hide.connect(func(): wind.visible = true)
 	wind.set_unparent_when_invisible(false)
-	
+
 	if Engine.is_editor_hint():
 		EditorInterface.popup_dialog_centered(wind, min_size)
 	else:
 		Engine.get_main_loop().root.add_child(wind)
 		wind.popup_centered(min_size)
-	
+
 	var ret = await function.call()
-	
+
 	wind.visible = false
 	wind.queue_free()
-	
+
 	return ret
 
 ## Runs a command in the system's terminal asynchronously,
@@ -103,14 +103,14 @@ static func launch_external_command_async(command:String, args := [], stay_open 
 		command = 'open'
 	else:
 		assert(false, "System terminal not found, cannot run command.")
-	
+
 	print("Running command: %s with args %s"%[command, new_args])
-	
+
 	var pid := OS.create_process(command, new_args, true)
-	
+
 	while OS.is_process_running(pid):
 		await Engine.get_main_loop().process_frame
-	
+
 	return OS.get_process_exit_code(pid)
 
 ## Launches another instance of the godot editor in the system's default terminal.
@@ -137,7 +137,7 @@ static func try_init_editor_setting_path(path:String,
 	var editor_settings := EditorInterface.get_editor_settings()
 	if not editor_settings.has_setting(path):
 		editor_settings.set_setting(path, default)
-	
+
 		editor_settings.set_initial_value(path, default, true)
 		var prop_info = {
 			"name" : path,
@@ -221,12 +221,12 @@ static func launch_python_module_async(module_name:String,
 static func download_http_async(to_path:String,
 								host:String,
 								path := "/",
-								headers := PackedStringArray(["User-Agent: Novatools/1.0 (Godot)"]),
+								headers := PackedStringArray(["User-Agent: NovaTools/1.0 (Godot)"]),
 								port:int = -1,
 								tls:TLSOptions = null
 							   ) -> Error:
 	print("Downloading: %s%s to %s"%[host, path, to_path])
-	
+
 	var http_client := HTTPClient.new()
 
 	if host.is_empty():
@@ -268,22 +268,22 @@ static func download_http_async(to_path:String,
 
 	while http_client.get_status() == HTTPClient.STATUS_BODY:
 		var data := http_client.read_response_body_chunk()
-		
+
 		file.store_buffer(data)
 		if data.size() > 0:
 			err = file.get_error()
 			if err != OK:
 				return err
-		
+
 		err = http_client.poll()
 		if err != OK:
 			return err
-		
+
 		await Engine.get_main_loop().process_frame
 
 	http_client.close()
 	file.close()
-	
+
 	print("Download complete!")
 	return OK
 
@@ -305,19 +305,19 @@ static func is_dir_link_absolute(p:String, unsupported_default := false) -> bool
 static func decompress_zip_async(file_path:String,
 								 to_path:String,
 								 whitelist_starts:Array[String] = []
-								) -> Error:
+								) -> int:
 	print("Decompressing %s to %s" % [file_path, to_path])
-	
+
 	var reader := ZIPReader.new()
 	var err := reader.open(file_path)
 	if err != OK:
 		return err
-	
+
 	for internal_path in reader.get_files():
 		if (not whitelist_starts.is_empty() and
 			not whitelist_starts.any(func (start:String): return internal_path.begins_with(start))):
 			continue
-		
+
 		if internal_path.ends_with("/"):
 			err = DirAccess.make_dir_recursive_absolute((to_path.rstrip("/") + "/" + internal_path))
 			if err != OK:
@@ -328,15 +328,15 @@ static func decompress_zip_async(file_path:String,
 				return FileAccess.get_open_error()
 			file.store_buffer(reader.read_file(internal_path))
 			file.close()
-		
+
 		await Engine.get_main_loop().process_frame
-	
+
 	err = reader.close()
 	if err != OK:
 		return err
-	
+
 	print("Decompress successful!")
-	
+
 	return OK
 
 ## Compresses the files located at [param source_path] to a [code]zip[/code] file located
@@ -345,7 +345,7 @@ static func decompress_zip_async(file_path:String,
 ## to the [param source_path] starts with nay of the given strings will be compressed.[br]
 ## If [param include_linked] is true, linked files will also be included in the zip.
 ## [param compression_level] is the specific compression level to use when compressing.
-## Since -1 is a valid ZIP compression level (corelating to the internal library's definition of a default compression level to use, [b]not[/b] to be confused with the default level set in the [ProjectSettings], of which can also include this -1 default value), the value used by this function to indicates the compression level should default to the value in [ProjectSettings] is -2 or lower. 
+## Since -1 is a valid ZIP compression level (corelating to the internal library's definition of a default compression level to use, [b]not[/b] to be confused with the default level set in the [ProjectSettings], of which can also include this -1 default value), the value used by this function to indicates the compression level should default to the value in [ProjectSettings] is -2 or lower.
 ## Note that specifying a individual compression level is only supported in godot v4.5 and up, so this paramiter will raise an error if anything besides the [ProjectSettings] default value is specified to be used (including both by specifying the actual value in project settings or by specifying this to -2 or lower, as noted above).
 static func compress_zip_async(source_path:String,
 							   to_file:String,
@@ -392,26 +392,26 @@ static func compress_zip_async(source_path:String,
 					break
 
 			await Engine.get_main_loop().process_frame
-			
+
 			err = packer.start_file(internal_path)
 			if err != OK:
 				break
-			
+
 			err = packer.write_file(data)
 			if err != OK:
 				break
-			
+
 			err = packer.close_file()
 			if err != OK:
 				break
-			
+
 			await Engine.get_main_loop().process_frame
-	
+
 	if err == OK:
 		err = packer.close()
 	else:
-		packer.close() # we should still try to close, but we should maintin the earliest error to return
-	
+		packer.close() # we should still try to close, but we should maintain the earliest error to return
+
 	return err
 
 ## Ensures a given path exists, without throwing errors if the directory already exists.
@@ -452,14 +452,14 @@ static func generate_version_py(to_path:String) -> Error:
 	assert(Engine.is_editor_hint())
 
 	var ver_file := FileAccess.open(to_path.path_join("version.py") , FileAccess.WRITE)
-	
+
 	if ver_file == null:
 		return FileAccess.get_open_error()
-	
+
 	var err:int = OK
 
 	var is_latest:bool = Engine.get_version_info()["status"] == "dev"
-	
+
 	if err == OK and not ver_file.store_line('website="https://godotengine.org"'):
 		err = ver_file.get_error()
 	if err == OK and not ver_file.store_line('name="Godot Engine"'):
@@ -500,7 +500,7 @@ static func copy_recursive(from_path:String,
 			for f in successfully_copied_buffer:
 				#just try all of it
 				delete_recursive(f)
-	
+
 	if max_files == 0:
 		try_panic_delete.call()
 		return ERR_TIMEOUT
@@ -509,25 +509,25 @@ static func copy_recursive(from_path:String,
 		if from_path in ["res:", "user:"]:
 			from_path += "//"
 		from_path = ProjectSettings.globalize_path(from_path)
-	
+
 	if to_path.begins_with("res:") or to_path.begins_with("user:"):
 		if to_path in ["res:", "user:"]:
 			to_path += "//"
 		to_path = ProjectSettings.globalize_path(to_path)
-	
+
 	if to_path in ignore_folders:
 		return OK
-	
+
 	ignore_folders = ignore_folders.duplicate()
 	ignore_folders.append(to_path.rstrip("/"))
-	
+
 	if not DirAccess.dir_exists_absolute(to_path):
 		var err := DirAccess.make_dir_recursive_absolute(to_path)
 		if err != OK:
 			try_panic_delete.call()
 			return err
 		successfully_copied_buffer.append(to_path)
-	
+
 	for file in DirAccess.get_files_at(from_path):
 		var err := OK
 		if max_files == 0:
@@ -543,12 +543,12 @@ static func copy_recursive(from_path:String,
 			return err
 		else:
 			successfully_copied_buffer.append(to_file)
-	
+
 	for dir in DirAccess.get_directories_at(from_path):
 		dir = dir.lstrip("/").rstrip("/")
 		var from_dir := (from_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
 		var to_dir := (to_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
-		
+
 		if (from_dir != to_dir and
 			Array(ignore_folders).all(func (p:String): return not from_path.get_slice("://", 1) in p)
 			):
@@ -584,7 +584,7 @@ static func delete_recursive(path:String, successfully_removed_buffer := PackedS
 		err = DirAccess.remove_absolute(path)
 	else:
 		err = ERR_FILE_NOT_FOUND
-	
+
 	if err == OK:
 		successfully_removed_buffer.append(path)
 	return err
@@ -614,7 +614,7 @@ static func move_recursive(from:String,
 				delete_recursive(from)
 	return err
 
-## Convert a url into a form that is relevant outside this application. For example, all res://, user://, and uid:// urls are converted to their file path forms, and all identifiable file paths without the proper scheme will have the file:// scheme applied to them. This allows for functions like [method OS.shell_open] to compatibly open more types of urls, and ensures that paths are wrapped safely, to avoid potentail malicious url collisions
+## Convert a url into a form that is relevant outside this application. For example, all res://, user://, and uid:// urls are converted to their file path forms, and all identifiable file paths without the proper scheme will have the file:// scheme applied to them. This allows for functions like [method OS.shell_open] to compatibly open more types of urls, and ensures that paths are wrapped safely, to avoid potential malicious url collisions
 static func normalized_url(url:String, file_relative_base := "") -> String:
 	var exe_dir := OS.get_executable_path().get_base_dir()
 	var usr_dir := OS.get_user_data_dir()
@@ -623,7 +623,7 @@ static func normalized_url(url:String, file_relative_base := "") -> String:
 	if file_relative_base == "":
 		file_relative_base = exe_dir
 
-	#lets manually normalize file paths without the "file://" scheme prefix to help improve the selection of using the browser manually 
+	#lets manually normalize file paths without the "file://" scheme prefix to help improve the selection of using the browser manually
 	var file_mode := url.begins_with("file://")
 
 	if url.begins_with("res://") or url.begins_with("uid://"):
@@ -633,14 +633,14 @@ static func normalized_url(url:String, file_relative_base := "") -> String:
 		elif ResourceLoader.exists(url): #resource paths aren't as simple as being relative to some directory, we need to check with te resource loader
 			url = ResourceLoader.load(url, "", ResourceLoader.CACHE_MODE_REUSE).resource_path
 			assert (DirAccess.dir_exists_absolute(url) or DirAccess.dir_exists_absolute(url.get_base_dir()))
-	
+
 	if url.begins_with("user://"):
 		file_mode = true
-		if Engine.is_editor_hint(): #sure, test builds might have acess to the ProjectSettings class to, but you make debug builds to debug how it acts on potentially non editor devices...
+		if Engine.is_editor_hint(): #sure, test builds might have access to the ProjectSettings class to, but you make debug builds to debug how it acts on potentially non editor devices...
 			url = ProjectSettings.globalize_path(url)
 		else:
 			url = usr_dir.path_join(url.get_slice("://", 1))
-	
+
 	if url.is_absolute_path() and DirAccess.dir_exists_absolute(url):
 		file_mode = true
 	elif url.is_relative_path():
@@ -650,7 +650,7 @@ static func normalized_url(url:String, file_relative_base := "") -> String:
 	#NOTE [b]all[/b] possible urls don't [i]need[/i] to contain "://" exactly to be valid, but valid windows file paths may also contain ":/", so we should only use this to guard against wild collision between valid urls and paths
 	elif "://" in url and drive_list.any(func (s): url.begins_with(s)):
 		file_mode = true
-	
+
 	if file_mode:
 		while "://" in url:
 			url = url.get_slice("://", 1)
@@ -700,11 +700,11 @@ static func typeof_is_any_array(type:int) -> bool:
 	return type == TYPE_ARRAY or typeof_is_packed_array(type)
 
 ## A method focused on taking in the many ways enums in godot can be referenced and returning a [Dictionary] that corelates enum's names to the enum's values.
-## When using gdscript and referring to constant dictionaries or enums also defined in other non-extension scripts, it's possible to acess them like any other constant property in a class (using it like a dictionary as is)
+## When using gdscript and referring to constant dictionaries or enums also defined in other non-extension scripts, it's possible to access them like any other constant property in a class (using it like a dictionary as is)
 ## however, is not consistent between versions or classes that are defined in [Script]s compared to classes defined in the [ClassDB].
 ## This method attempts to simplify that by allowing for all types of enums to be retrieved in their dictionary form simply by providing the class's name and the enum's name in that class.
-## This method will also consistently return enums that can also be inherited from parrent classes regardless of if the parent is a [Script] or a [ClassDB] defined class (or both, in the case that is ever possible).
-## While [param name_or_object] accepts many diffrent way to refer to a class, the most consistent (and suggested) method is to
+## This method will also consistently return enums that can also be inherited from parent classes regardless of if the parent is a [Script] or a [ClassDB] defined class (or both, in the case that is ever possible).
+## While [param name_or_object] accepts many different way to refer to a class, the most consistent (and suggested) method is to
 ## supply the class's name (or the path to the script if the script is an unnamed class) to [param name_or_object] and the enum's name to [param enum_name].
 ## However, the following are also acceptable way to look up enums:
 ## [ul]
@@ -716,8 +716,8 @@ static func typeof_is_any_array(type:int) -> bool:
 ## since [Script]'s enums are only defined as constant dictionaries,
 ## making it technically possible for typos of names to include dictionaries with non-[int] values.
 ## While [param enforce_values_of_int] defaults to [code]true[/code], it can be disabled for a menial speed boost when calling this method.
-## This methods is indended for use with methods like [make_int_enum_hint_string] or other means handling exported enum values in the inspector.
 static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_values_of_int := true) -> Dictionary:
+## This methods is indented for use with methods like [make_int_enum_hint_string] or other means handling exported enum values in the inspector.
 	if typeof(name_or_object) == TYPE_DICTIONARY: #how passing in a gdscript enum type should (hopefully) work
 		if enforce_values_of_int:
 			assert(name_or_object.values().all(func (v): return typeof(v) == TYPE_INT))
@@ -728,6 +728,7 @@ static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_v
 		var ret := {}
 
 		var cls_name:String = ""
+		# note that we don't use [get_class_name] here because we want the classdb name specifically
 		if typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME]:
 			cls_name = name_or_object
 		elif name_or_object is Script:
@@ -740,6 +741,7 @@ static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_v
 				ret[n] = ClassDB.class_get_integer_constant(cls_name, n)
 
 		var script:Script = null
+		# note that we don't use [class_name_normalize] or [get_class_name] here because we want the script specifically, or else null
 		if typeof(name_or_object) in [TYPE_STRING, TYPE_STRING_NAME]:
 			var script_path := script_path_normalize(name_or_object)
 			if not script_path.is_empty() and ResourceLoader.exists(script_path, "Script"):
@@ -759,11 +761,14 @@ static func enum_extract_dict(name_or_object:Variant, enum_name := "", enforce_v
 				if cn == enum_name and typeof(c) == TYPE_DICTIONARY:
 					ret.merge(enum_extract_dict(c, enum_name, enforce_values_of_int))
 		return ret
+
 	assert(false)
-	return {} #Never reached, but code parsing needs a fallback from an assert anyway
+	# Never reached, but code parsing needs a fallback from an assert for whatever reason
+	# note this asserts that they type is correct
+	return {}
 
 ## Takes a list of enums (in the form of a dictionary with [String] keys, another array (packed or otherwise) of string enum names, or string enum names directly)
-## And attempts to merge them all into a single hint_string, indended for use in
+## And attempts to merge them all into a single hint_string, intended for use in
 ## property lists with the hint of [constant PROPERTY_HINT_ENUM_SUGGESTION].
 ## This will [method assert] that all enum's the names (ignoring the values all together, if even provided)
 ## has no common names with any other.
@@ -786,8 +791,8 @@ static func make_string_suggestion_enum_hint_string(enum_dicts:Array[Variant]) -
 			ns.append(k)
 	return ",".join(ns)
 
-## Takes a list of enums (in the form of a dictionary of [String] keys and [int] values)
-## And attempts to merge them all into a single hint_string, indended for use in
+## Takes a list of enums (in the form of a dictionary of [String] (or [StringName]) keys and [int] values)
+## And attempts to merge them all into a single hint_string, intended for use in
 ## property lists with the hint of [constant PROPERTY_HINT_ENUM].
 ## This will [method assert] that all enum's the values (but not names)
 ## has no common values with any other.
@@ -840,16 +845,16 @@ enum DebugInfoTypes{
 	PROJECT_MAIN_LOOP_TYPE,
 
 	OS_NAME,
-	OS_DISTROBUTION_NAME_OR_NAME,
-	OS_NAME_WITH_DISTROBUTION,
+	OS_DISTRIBUTION_NAME_OR_NAME,
+	OS_NAME_WITH_DISTRIBUTION,
 	OS_MODEL_NAME,
 	OS_PROCESSOR_NAME,
 	OS_DEVICE_UUID,
 	OS_VERSION_NUMBER,
-	OS_VERSION_alias_OR_NUMBER,
+	OS_VERSION_ALIAS_OR_NUMBER,
 	OS_BROWSER_OS,
 	OS_GRANTED_PERMISSIONS,
-	OS_architecture_NAME,
+	OS_ARCHITECTURE_NAME,
 	OS_CPU_COUNT,
 	OS_WINDOW_SERVER_NAME,
 
@@ -947,16 +952,24 @@ enum DebugInfoTypes{
 	ENGINE_LICENCE_INFO,
 }
 
+## Determines if the given [param enum_value] is a value compatible
+## originating from [enum Performance.Monitor].
+## This is used internally in [method get_debug_info], and only implements a
+## rough approximation of the possible values in [enum Performance.Monitor]
+## (it uses [constant Performance.MONITOR_MAX] instead of finding all possible enum values).
+static func is_performance_monitor_id(enum_value:int) -> bool:
+	return enum_value <= Performance.MONITOR_MAX
+
 ## A function intended for use in debug logging and displays;
 ## it first checks if the [param name_or_id] is the name of a custom [Performance]
-## monitor, or if its the intiger index of a [enum Performance.Monitor], and if found,
+## monitor, or if its the integer index of a [enum Performance.Monitor], and if found,
 ## returns that performance monitor value.
 ## Otherwise, it will then expect the [param name_or_id] to be
-## a intiger value corelating to [enum DebugInfoTypes].
+## a integer value corelating to [enum DebugInfoTypes].
 ## If nothing else applies, then [param default] is returned
 ## Note how the [enum DebugInfoTypes] enum is made specifically to avoid
 ## any common values with the [enum Performance.Monitor] enum,
-## so you are safe to use either kind of value without further specification.
+## so you are safe to use either enum's value as an id without further specification.
 static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Variant:
 	if typeof(name_or_id) in [TYPE_STRING_NAME, TYPE_STRING] and Performance.has_custom_monitor(name_or_id):
 		return Performance.get_custom_monitor(name_or_id)
@@ -994,8 +1007,8 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 			DebugInfoTypes.RUN_LOW_PROCESSOR_MODE:
 				return OS.low_processor_usage_mode
 			DebugInfoTypes.RUN_LOW_PROCESSOR_MODE_SLEEP_SEC:
-				return OS.low_processor_usage_mode_sleep_usec / 1000000
-			
+				return OS.low_processor_usage_mode_sleep_usec / 1000000.0
+
 			DebugInfoTypes.PROJECT_NAME:
 				return ProjectSettings.get_setting("application/config/name", "")
 			DebugInfoTypes.PROJECT_VERSION:
@@ -1010,12 +1023,12 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return ProjectSettings.get_setting("application/run/main_scene", "")
 			DebugInfoTypes.PROJECT_MAIN_LOOP_TYPE:
 				return ProjectSettings.get_setting("application/run/main_loop_type", "")
-			
+
 			DebugInfoTypes.OS_NAME:
 				return OS.get_name()
-			DebugInfoTypes.OS_DISTROBUTION_NAME_OR_NAME:
+			DebugInfoTypes.OS_DISTRIBUTION_NAME_OR_NAME:
 				return OS.get_distribution_name() if OS.get_distribution_name() != "" else OS.get_name()
-			DebugInfoTypes.OS_NAME_WITH_DISTROBUTION:
+			DebugInfoTypes.OS_NAME_WITH_DISTRIBUTION:
 				return ("%s (%s)" % [OS.get_name(), OS.get_distribution_name()]) if (OS.get_distribution_name() != "" and OS.get_distribution_name() != OS.get_name()) else OS.get_name()
 			DebugInfoTypes.OS_MODEL_NAME:
 				return OS.get_model_name()
@@ -1025,7 +1038,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return OS.get_unique_id()
 			DebugInfoTypes.OS_VERSION_NUMBER:
 				return OS.get_version()
-			DebugInfoTypes.OS_VERSION_alias_OR_NUMBER:
+			DebugInfoTypes.OS_VERSION_ALIAS_OR_NUMBER:
 				return OS.get_version_alias()
 			DebugInfoTypes.OS_BROWSER_OS:
 				if OS.has_feature("web_android"):
@@ -1043,13 +1056,13 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return null
 			DebugInfoTypes.OS_GRANTED_PERMISSIONS:
 				return OS.get_granted_permissions()
-			DebugInfoTypes.OS_architecture_NAME:
+			DebugInfoTypes.OS_ARCHITECTURE_NAME:
 				return OS.get_processor_name()
 			DebugInfoTypes.OS_CPU_COUNT:
 				return OS.get_processor_count()
 			DebugInfoTypes.OS_WINDOW_SERVER_NAME:
 				return DisplayServer.get_name()
-			
+
 			DebugInfoTypes.LOCALE_LANG:
 				return OS.get_locale_language()
 			DebugInfoTypes.LOCALE_SCRIPT:
@@ -1060,7 +1073,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return OS.get_locale().get_slice("_", 3).get_slice("@", 0)
 			DebugInfoTypes.LOCALE_EXTRAS:
 				return OS.get_locale().get_slice("_", 3).get_slice("@", 1).split(";")
-			
+
 			DebugInfoTypes.TRANSLATION_SERVER_LOCALE:
 				return TranslationServer.get_locale()
 			DebugInfoTypes.TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE:
@@ -1069,7 +1082,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return TranslationServer.get_locale_name(TranslationServer.get_locale())
 			DebugInfoTypes.TRANSLATION_SERVER_EDITOR_LOCALE_OR_LOCALE_NAME:
 				return TranslationServer.get_locale_name(TranslationServer.get_tool_locale())
-			
+
 			DebugInfoTypes.TEXT_SERVER_NAME:
 				return TextServerManager.get_primary_interface().get_name()
 			DebugInfoTypes.TEXT_SERVER_SUPPORT_DATA_INFO:
@@ -1106,7 +1119,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_UNICODE_IDENTIFIERS)
 			DebugInfoTypes.TEXT_SERVER_FEATURE_UNICODE_SECURITY:
 				return TextServerManager.get_primary_interface().has_feature(TextServer.FEATURE_UNICODE_SECURITY)
-		
+
 			DebugInfoTypes.MAIN_THREAD_ID:
 				return OS.get_main_thread_id()
 			DebugInfoTypes.MAIN_PROCESS_ID:
@@ -1156,7 +1169,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return CameraServer.monitoring_feeds
 			DebugInfoTypes.CAMERA_FEED_COUNT:
 				return CameraServer.get_feed_count()
-			
+
 			DebugInfoTypes.PHYSICS_MAX_STEP_PER_FRAME:
 				return Engine.physics_ticks_per_second
 			DebugInfoTypes.PHYSICS_JITTER_FIX:
@@ -1244,21 +1257,21 @@ static func get_editor_icon_named(name:String, manual_size := -Vector2i.ONE) -> 
 
 	if theme == null || theme.has_icon(name, EDITOR_ICONS_THEME_TYPE):
 		return null
-	
-	var texture := theme.get_icon(name, EDITOR_ICONS_THEME_TYPE)
-	var og_size := texture.get_image().get_size()
-	if manual_size.x < 0:
-		manual_size.x = og_size.x
-	if manual_size.y < 0:
-		manual_size.y = og_size.y
 
-	if manual_size != og_size:
+	var texture := theme.get_icon(name, EDITOR_ICONS_THEME_TYPE)
+	var original_size := texture.get_image().get_size()
+	if manual_size.x < 0:
+		manual_size.x = original_size.x
+	if manual_size.y < 0:
+		manual_size.y = original_size.y
+
+	if manual_size != original_size:
 		texture = texture.duplicate()
 		texture.set_size_override(manual_size)
-	
+
 	return texture
 
-## Attempts to call a method on the editor's version controll system, as exposed as virtual methods
+## Attempts to call a method on the editor's version control system, as exposed as virtual methods
 ## in [EditorVCSInterface].[br]
 ## This expects for the editor VCS interface to be initialised already.
 static func callv_vcs_method(name:StringName, args:Array = []) -> Variant:
@@ -1359,7 +1372,7 @@ static func instantiate_this(path_name_script_or_scene) -> Object:
 			ClassDB.can_instantiate(path_name_script_or_scene)
 		   ):
 			return ClassDB.instantiate(path_name_script_or_scene)
-		
+
 		var script_path = script_path_normalize(path_name_script_or_scene)
 		if not script_path.is_empty() and ResourceLoader.exists(script_path, "Script"):
 			var loaded := load(script_path)
@@ -1369,10 +1382,10 @@ static func instantiate_this(path_name_script_or_scene) -> Object:
 			var loaded := load(path_name_script_or_scene)
 			if loaded != null and loaded.can_instantiate():
 				path_name_script_or_scene = loaded
-	
+
 	if path_name_script_or_scene is Script:
 		return path_name_script_or_scene.new()
-	
+
 	if path_name_script_or_scene is PackedScene:
 		return path_name_script_or_scene.instantiate()
 
@@ -1399,7 +1412,7 @@ static func get_classes_inheriting(name_or_path:String,
 	found.append(name)
 	var added:int = found.size()
 	# We need to do this recursively,
-	# and we have not controll over order,
+	# and we have not control over order,
 	# so monitor the amount of things found and stop once no more can be added
 	while added > 0:
 		added = 0
@@ -1443,13 +1456,13 @@ static func get_class_name(object:Object) -> String:
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_right] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_neighbor_right].
+## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_right].
 static func focus_chain_right(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_neighbor_right = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s, setting their [member Control.focus_neighbor_left]
@@ -1460,13 +1473,13 @@ static func focus_chain_right(controls:Array[Control], loop:= false, unique_path
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_left] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_neighbor_left].
+## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_left].
 static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_neighbor_left = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s, setting their [member Control.focus_neighbor_top]
@@ -1477,13 +1490,13 @@ static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_top] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_neighbor_top].
+## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_top].
 static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_neighbor_top = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s, setting their [member Control.focus_neighbor_bottom]
@@ -1494,13 +1507,13 @@ static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_bottom] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_neighbor_bottom].
+## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_bottom].
 static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_neighbor_bottom = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s, setting their [member Control.focus_next]
@@ -1511,13 +1524,13 @@ static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_pat
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_next] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_next].
+## NOTE: This overrides any existing paths set for [member Control.focus_next].
 static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_next = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s, setting their [member Control.focus_neighbor_bottom],
@@ -1530,13 +1543,13 @@ static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_previous] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_previous].
+## NOTE: This overrides any existing paths set for [member Control.focus_previous].
 static func focus_chain_previous(controls:Array[Control], loop:= false, unique_paths_allowed := false):
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
 	for i in range(range_max):
-		var next_i := wrap(i+1, 0, controls.size())
+		var next_i := wrapi(i+1, 0, controls.size())
 		controls[i].focus_previous = controls[i].get_path_to(controls[next_i], unique_paths_allowed)
 
 ## Takes a [Array] of [Control]s and sets their [member Control.focus_previous]
@@ -1547,7 +1560,7 @@ static func focus_chain_previous(controls:Array[Control], loop:= false, unique_p
 ## paths as well, if the route is shorter.[br]
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_previous] will be cleared.[br]
-## NOTE: This overides any existing paths set for [member Control.focus_previous].
+## NOTE: This overrides any existing paths set for [member Control.focus_previous].
 static func focus_chain_all(controls:Array[Control], loop := false, unique_paths_allowed := false):
 	focus_chain_bottom(controls, loop, unique_paths_allowed)
 	focus_chain_right(controls, loop, unique_paths_allowed)
