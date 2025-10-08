@@ -58,7 +58,7 @@ static func show_wait_window_while_async(message:String,
 										 function:Callable,
 										 min_size := Vector2i.ONE * 100
 										) -> Variant:
-	#HOW IS THIS NOT AN EXPOSED FEATURE GODSOT ProgressDialog IS RIGHT THERE
+	#HOW IS THIS NOT AN EXPOSED FEATURE GODOT `ProgressDialog` IS RIGHT THERE
 	var lab := RichTextLabel.new()
 	lab.text = message
 	lab.bbcode_enabled = true
@@ -91,13 +91,13 @@ static func launch_external_command_async(command:String, args := [], stay_open 
 		command = "xterm"
 	elif OS.get_name() == "MacOS" or OS.get_name() == "Darwin":
 		push_warning("BE AWARE: This is not properly tested on\
-					  MacOS/Darwin platforms! The commands may not run during export!")
+					  MacOS/Darwin platforms! Commands may not run as expected!")
 		new_args = ['-n', 'Terminal.app', command]
 		new_args += (['--args'] if args.size() > 0 else [])
 		new_args += args
 		command = 'open'
 	else:
-		assert(false)
+		assert(false, "System terminal not found, cannot run command.")
 	
 	print("Running command: %s with args %s"%[command, new_args])
 	
@@ -108,7 +108,7 @@ static func launch_external_command_async(command:String, args := [], stay_open 
 	
 	return OS.get_process_exit_code(pid)
 
-## Launches another instance fo the godot editor in the system's default terminal.
+## Launches another instance of the godot editor in the system's default terminal.
 static func launch_editor_instance_async(args := [],
 										 log_file_path :=  "",
 										 stay_open := true
@@ -121,7 +121,7 @@ static func launch_editor_instance_async(args := [],
 	return OK if ret_code == 0 else FAILED
 
 ## Safely initialises a setting in the [EditorSettings] if it is not already made.
-## If [param type] is set to [constant Variant.Type.TYPE_NIL],
+## If [param type] is set to [constant Variant.TYPE_NIL],
 ## the type of the setting will be assumed form the [param default] value.
 static func try_init_editor_setting_path(path:String,
 										 default:Variant = null,
@@ -172,7 +172,7 @@ static func try_deinit_python_prefix_editor_setting():
 									 )
 
 
-## Launches a python script/file in a seprate terminal window asynchronously.
+## Launches a python script/file in a separate terminal window asynchronously.
 ## Returns the exit code of the script.[br]
 ## Use [method launch_python_module_async] to run a installed python module on the system.
 static func launch_python_file_async(file:String,
@@ -186,7 +186,7 @@ static func launch_python_file_async(file:String,
 												  )
 	return await launch_external_command_async(python_prefix, [file] + args, stay_open)
 
-## Launches a installed python module on the system in a seprate terminal window asynchronously.
+## Launches a installed python module on the system in a separate terminal window asynchronously.
 ## Returns the exit code of the module.[br]
 ## Use [method launch_python_file_async] to run a python script/file instead.
 static func launch_python_module_async(module_name:String,
@@ -216,8 +216,9 @@ static func launch_python_module_async(module_name:String,
 static func download_http_async(to_path:String,
 								host:String,
 								path := "/",
-								headers := PackedStringArray(["User-Agent: Godotcgen/1.0 (Godot)"]),
-								port:int = -1
+								headers := PackedStringArray(["User-Agent: Novatools/1.0 (Godot)"]),
+								port:int = -1,
+								tls:TLSOptions = null
 							   ) -> Error:
 	print("Downloading: %s%s to %s"%[host, path, to_path])
 	
@@ -226,7 +227,7 @@ static func download_http_async(to_path:String,
 	if host.is_empty():
 		return ERR_INVALID_PARAMETER
 
-	var err := http_client.connect_to_host(host, port)
+	var err := http_client.connect_to_host(host, port, tls)
 	if err != OK:
 		return err
 
@@ -242,7 +243,9 @@ static func download_http_async(to_path:String,
 		return err
 
 	while http_client.get_status() == HTTPClient.STATUS_REQUESTING:
-		http_client.poll()
+		err = http_client.poll()
+		if err != OK:
+			return err
 		await Engine.get_main_loop().process_frame
 
 	if not http_client.get_status() in [HTTPClient.STATUS_BODY, HTTPClient.STATUS_CONNECTED]:
@@ -262,6 +265,10 @@ static func download_http_async(to_path:String,
 		var data := http_client.read_response_body_chunk()
 		
 		file.store_buffer(data)
+		if data.size() > 0:
+			err = file.get_error()
+			if err != OK:
+				return err
 		
 		err = http_client.poll()
 		if err != OK:
@@ -276,7 +283,7 @@ static func download_http_async(to_path:String,
 	return OK
 
 ## Decompresses the [code]zip[/code] file located at [param file_path] [param to_path].[br]
-## If [param whitelist_starts] is not empty, only file paths that zip relitive location
+## If [param whitelist_starts] is not empty, only file paths that zip relative location
 ## starts with any of the given strings will be decompressed.
 static func decompress_zip_async(file_path:String,
 								 to_path:String,
@@ -381,7 +388,7 @@ static func get_children_dir_recursive(from_path:String,
 	from_path = ProjectSettings.globalize_path(from_path)
 	var found := PackedStringArray()
 	for dir in DirAccess.get_directories_at(from_path):
-		dir = from_path + "/" + dir
+		dir = from_path.path_join(dir)
 		if not only_with_files or not DirAccess.get_files_at(dir).is_empty():
 			found.append(dir)
 		found.append_array(get_children_dir_recursive(dir, only_with_files))
@@ -398,8 +405,8 @@ static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 ## specific version of godot to the given [param to_path].
 static func generate_version_py(to_path:String) -> Error:
 	assert(Engine.is_editor_hint())
-	
-	var ver_file := FileAccess.open(to_path.rstrip("/") + "/" + "version.py", FileAccess.WRITE)
+
+	var ver_file := FileAccess.open(to_path.path_join("version.py") , FileAccess.WRITE)
 	
 	if ver_file == null:
 		return FileAccess.get_open_error()
@@ -421,7 +428,7 @@ static func generate_version_py(to_path:String) -> Error:
 
 	return OK
 
-## Coppies all files and directories from [param from_path] to [param to_path].
+## Copies all files and directories from [param from_path] to [param to_path].
 ## All paths set in [param ignore_folders] will be skipped when copying.[br]
 ## NOTE: Depending on the size of data begin moved,
 ## this function can freeze the editor for some time.
@@ -525,7 +532,7 @@ static func try_callv_vcs_method(name:StringName,
 		return callv_vcs_method(name, args)
 	return default
 
-## Checks if any file are chenaged as according to the vcs, always returning [code]false[/code]
+## Checks if any file are changed as according to the vcs, always returning [code]false[/code]
 ## if the vcs is not enabled.
 static func vcs_is_something_changed() -> bool:
 	return vcs_active() and callv_vcs_method("get_modified_files_data", []).size() > 0
@@ -565,7 +572,7 @@ static func class_name_normalize(path_name_or_script) -> String:
 ## it will always return [member Script.resource_path], even if it's empty.[br]
 ## Otherwise, [param path_name_or_script] will be treated as a
 ## potential name or path to a script and if a [b]single[/b] [Script] is found,
-## it's path will be returened.[br]
+## it's path will be returned.[br]
 static func script_path_normalize(path_name_or_script) -> String:
 	if path_name_or_script is Script:
 		return path_name_or_script.resource_path
@@ -623,7 +630,7 @@ static func instantiate_this(path_name_script_or_scene) -> Object:
 ## This function allows for either (or both) [param include_script_paths]
 ## or [param include_script_class_names].
 ## If both are included, this lis may contain the class name and the path
-## of the same script simutaniously.
+## of the same script simultaneously.
 static func get_classes_inheriting(name_or_path:String,
 								   include_script_paths := false,
 								   include_script_class_names := true
@@ -787,7 +794,7 @@ static func focus_chain_previous(controls:Array[Control], loop:= false, unique_p
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_previous] will be cleared.[br]
 ## NOTE: This overides any existing paths set for [member Control.focus_previous].
-static func focus_chain_all(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_all(controls:Array[Control], loop := false, unique_paths_allowed := false):
 	focus_chain_bottom(controls, loop, unique_paths_allowed)
 	focus_chain_right(controls, loop, unique_paths_allowed)
 	focus_chain_next(controls, loop, unique_paths_allowed)

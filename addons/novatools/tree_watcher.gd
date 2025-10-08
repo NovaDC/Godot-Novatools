@@ -1,11 +1,11 @@
 @tool
 @icon("./icon.svg")
-extends Node
 class_name TreeWatcherSingleton
+extends Node
 
 ## TreeWatcherSingleton
 ##
-## A node intended to be used as a (autoloaded [Node]) singleton. Used to monitor certian
+## A node intended to be used as a (autoloaded [Node]) singleton. Used to monitor certain
 ## changes in the [SceneTree] which the [SceneTree] currently doesn't currently provide a simple
 ## interface to do.[br]
 ## Currently provides signals connected to the changing of [Scene]s, and to the
@@ -35,21 +35,21 @@ func _enter_tree():
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	
+
 	_pause_eye = PauseEye.new()
 	add_child(_pause_eye)
 	_pause_eye.paused.connect(tree_paused.emit)
 	_pause_eye.paused.connect(tree_pause_change.emit.bind(true))
 	_pause_eye.unpaused.connect(tree_resumed.emit)
 	_pause_eye.unpaused.connect(tree_pause_change.emit.bind(false))
-	
+
 	var tree := get_tree()
 	if tree != null:
 		if not tree.node_added.is_connected(_on_node_add):
 			tree.node_added.connect(_on_node_add)
 		if not tree.node_removed.is_connected(_on_node_free):
 			tree.node_removed.connect(_on_node_free)
-	
+
 	_on_node_add(self)
 
 func _exit_tree() -> void:
