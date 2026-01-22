@@ -1329,17 +1329,26 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 static func get_editor_icon_named(name:String, manual_size := -Vector2i.ONE) -> Texture2D:
 	var theme = get_most_relevant_editor_theme()
 
-	if theme == null || theme.has_icon(name, EDITOR_ICONS_THEME_TYPE):
+	if theme == null or not theme.has_icon(name, EDITOR_ICONS_THEME_TYPE):
 		return null
 
 	var texture := theme.get_icon(name, EDITOR_ICONS_THEME_TYPE)
-	var original_size := texture.get_image().get_size()
-	if manual_size.x < 0:
-		manual_size.x = original_size.x
-	if manual_size.y < 0:
-		manual_size.y = original_size.y
 
-	if manual_size != original_size:
+	if texture == null or texture.get_size() <= Vector2.ZERO:
+		return null
+
+	var original_size := texture.get_size()
+	if manual_size.x < 0:
+		manual_size.x = floori(original_size.x)
+	if manual_size.y < 0:
+		manual_size.y = floori(original_size.y)
+
+	if Vector2(manual_size) != original_size:
+		if not texture.has_method("set_size_override"):
+			var texture_image := texture.get_image()
+			if texture_image == null:
+				return texture
+			texture = ImageTexture.create_from_image(texture_image)
 		texture = texture.duplicate()
 		texture.set_size_override(manual_size)
 
