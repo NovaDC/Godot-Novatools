@@ -692,19 +692,18 @@ static func normalized_url(url:String, file_relative_base := "") -> String:
 		if DirAccess.dir_exists_absolute(usr_dir.path_join(url)):
 			url = usr_dir.path_join(url)
 			file_mode = true
-	#NOTE [b]all[/b] possible urls don't [i]need[/i] to contain "://" exactly to be valid, but valid windows file paths may also contain ":/", so we should only use this to guard against wild collision between valid urls and paths
+	#NOTE [b]all[/b] possible urls don't [i]need[/i] to contain "://" exactly to be valid, but valid windows file paths may also contain ":/", so we should only use this to guard against wild collisions between valid urls and paths
 	elif "://" in url and drive_list.any(func (s): url.begins_with(s)):
 		file_mode = true
 
 	if file_mode:
-		while "://" in url:
-			url = url.get_slice("://", 1)
-		url = "file://" + url
+		url = "file://" + normalize_path_absolute(url)
 
 	return url
 
 ## Take a url, as if it is normalized (using [method normalized_url]) into a file url, return the path from that url.
-## OTherwise, return [param default].
+## Otherwise, return [param default].
+## @deprecated This method is unused and unessicary. This method will be removed in later versions.
 ## This helps normalize res://, user://, and uid:// paths sensibly while also allowing for safe parsing of file:// urls and paths
 static func url_get_file(url:String, default := "") -> String:
 	url = normalized_url(url)
@@ -716,12 +715,12 @@ static func url_get_file(url:String, default := "") -> String:
 	return s[1]
 
 ## Open a url on the system, always converting res://, user:// and uid:// paths into their respective file system paths before then attempting to open any possible valid file paths in the system file browser first, before falling back to the os's choice for program in the case opening it in the file manager fails
+## @deprecated [method OS.shell_show_in_file_manager] and [method OS.shell_open] are more precise and prefered. This method will be removed in later versions.
 static func open_uri_file_fixed(url:String, view_into_folders := false):
 	url = normalized_url(url)
 
-	var err := OS.shell_show_in_file_manager(url.get_slice("://", 1), view_into_folders)
-	if url.begins_with("file://") and err == OK:
-		return err
+	if url.begins_with("file://"):
+		return OS.shell_show_in_file_manager(url.get_slice("://", 1), view_into_folders)
 	return OS.shell_open(url)
 
 ## Gets the theme that is closes to the editor's theme, including when this isn't actually the editor. In the case this has no editor theme, it will then attempt to fall back to the project theme before falling back to the default theme.
