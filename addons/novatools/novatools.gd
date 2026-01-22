@@ -481,8 +481,64 @@ static func generate_version_py(to_path:String) -> int:
 
 	return err
 
-## Copies all files and directories from [param from_path] to [param to_path].
-## All paths set in [param ignore_folders] will be skipped when copying.[br]
+static func _recursive_path_normalizer_step(path:Variant) -> String:
+	var fixed_path := ""
+	match (typeof(path)):
+		TYPE_STRING:
+			fixed_path = path
+		TYPE_STRING_NAME, TYPE_NODE_PATH:
+			fixed_path = str(path)
+		TYPE_PACKED_STRING_ARRAY, TYPE_ARRAY:
+			var first := true
+			for x in path:
+				x = _recursive_path_normalizer_step(x)
+				if first:
+					first = false
+					fixed_path = x
+				else:
+					fixed_path.path_join(x)
+		_:
+			return ""
+	return fixed_path.replace("\\", "/").strip_edges().strip_escapes()
+
+## Normalizes [code]res://[/code], [code]user://[/code], and [code]file://[/code] uris as well as other paths to their absolute
+## representation on the system's filesystem.[br]
+## If the path is invalid, an empty string is returned.[br]
+## [Array]s and [PackedStringArray]s will be joined ad a sequence of path segments into a single path.[br]
+## [br]
+## When [param no_relative] is set (as by defualt), relitive paths will always be invalid (and return an empty string).
+## Otherwise, its assumed that paths are always relitive to the location of "res://" on the local system.[br]
+## [br]
+## UID uris are not currently supported.
+static func normalize_path_absolute(path:Variant, no_relative := true) -> String:
+	var norm_path := _recursive_path_normalizer_step(path)
+
+	if norm_path.begins_with("uid:"):
+		return ""
+
+	if norm_path.is_relative_path():
+		if no_relative:
+			return ""
+		norm_path = "res://".path_join(norm_path.trim_prefix("./"))
+	norm_path = norm_path.simplify_path()
+
+	if norm_path.begins_with("res:") or norm_path.begins_with("user:"):
+		norm_path = ProjectSettings.globalize_path(norm_path)
+	else:
+		norm_path = norm_path.trim_prefix("file://").trim_prefix("file:")
+		if norm_path.is_empty(): #woops, stripped away the root
+			norm_path = "/"
+
+	return norm_path
+
+## Copies all files and directories from [param from_path] to [param to_path].[br]
+## [param from_path] and [param to_path] may be normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## however, these paths must be absolute.[br]
+## [br]
+## All paths set in [param ignore_folders] will be skipped when copying.
+## These paths must always be simplified and absolute filesystem paths only.[br]
+## [br]
 ## The array in [param successfully_copied_buffer] will have all the paths that were created during copying without any errors appended to it.[br]
 ## NOTE: Depending on the size of data begin moved,
 ## this function can freeze the editor for some time.
@@ -493,8 +549,6 @@ static func copy_recursive(from_path:String,
 						   delete_on_fail := true,
 						   successfully_copied_buffer := PackedStringArray()
 						  ) -> int:
-	from_path = from_path.rstrip("/")
-	to_path = to_path.rstrip("/")
 	var try_panic_delete := func():
 		if delete_on_fail:
 			for f in successfully_copied_buffer:
@@ -505,21 +559,19 @@ static func copy_recursive(from_path:String,
 		try_panic_delete.call()
 		return ERR_TIMEOUT
 
-	if from_path.begins_with("res:") or from_path.begins_with("user:"):
-		if from_path in ["res:", "user:"]:
-			from_path += "//"
-		from_path = ProjectSettings.globalize_path(from_path)
+	from_path = normalize_path_absolute(from_path, false)
+	to_path = normalize_path_absolute(to_path, false)
 
-	if to_path.begins_with("res:") or to_path.begins_with("user:"):
-		if to_path in ["res:", "user:"]:
-			to_path += "//"
-		to_path = ProjectSettings.globalize_path(to_path)
+	if from_path.is_empty() or to_path.is_empty():
+		return ERR_FILE_BAD_PATH
+	if not from_path.is_absolute_path() or not to_path.is_absolute_path():
+		return ERR_CANT_RESOLVE # this is an absolute operation
 
-	if to_path in ignore_folders:
+	if from_path == to_path or from_path in ignore_folders:
 		return OK
 
 	ignore_folders = ignore_folders.duplicate()
-	ignore_folders.append(to_path.rstrip("/"))
+	ignore_folders.append(to_path)
 
 	if not DirAccess.dir_exists_absolute(to_path):
 		var err := DirAccess.make_dir_recursive_absolute(to_path)
@@ -532,9 +584,8 @@ static func copy_recursive(from_path:String,
 		var err := OK
 		if max_files == 0:
 			return ERR_TIMEOUT
-		file = file.lstrip("/")
-		var from_file := (from_path.rstrip("/") + "/" + file).rstrip("/")
-		var to_file := (to_path.rstrip("/") + "/" + file).rstrip("/")
+		var from_file := from_path.path_join(file).simplify_path()
+		var to_file := to_path.path_join(file).simplify_path()
 		err = DirAccess.copy_absolute(from_file, to_file)
 		if max_files > 0:
 			max_files -= 1
@@ -545,20 +596,14 @@ static func copy_recursive(from_path:String,
 			successfully_copied_buffer.append(to_file)
 
 	for dir in DirAccess.get_directories_at(from_path):
-		dir = dir.lstrip("/").rstrip("/")
-		var from_dir := (from_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
-		var to_dir := (to_path.rstrip("/") + "/" + dir).rstrip("/").simplify_path()
-
-		if (from_dir != to_dir and
-			Array(ignore_folders).all(func (p:String): return not from_path.get_slice("://", 1) in p)
-			):
+		var from_dir := from_path.path_join(dir).simplify_path()
+		var to_dir := to_path.path_join(dir).simplify_path()
+		if (from_dir != to_dir and not from_path in ignore_folders):
 			var err := copy_recursive(from_dir, to_dir, ignore_folders, max_files, delete_on_fail, successfully_copied_buffer)
 			if err != OK:
 				# no need to panic delete, the recursive call will can do that itself,
 				# the successfully_copied_buffer is shared 2 ways after all
 				return err
-			else:
-				successfully_copied_buffer.append(to_dir)
 		if max_files > 0:
 			max_files = max(0, max_files - DirAccess.get_files_at(from_dir).size())
 		ignore_folders.append(to_dir)
