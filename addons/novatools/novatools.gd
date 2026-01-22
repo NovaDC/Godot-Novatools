@@ -210,6 +210,9 @@ static func launch_python_module_async(module_name:String,
 
 ## Downloads a file located at a specific http [param host]'s [param path]
 ## [param to_path] located on this system.[br]
+## [param to_path] may be a normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
+## If [param to_path] is reliative, its presumed to be relitive to the project's resource directory.
 ## When set, the headers of the request will be set to [param headers].[br]
 ## When set to a non-negative value, the port of the request will be set to [param port].
 ## When set to a negative value, the port will be determined from the [param host]'s scheme
@@ -225,6 +228,8 @@ static func download_http_async(to_path:String,
 								port:int = -1,
 								tls:TLSOptions = null
 							   ) -> int:
+	to_path = normalize_path_absolute(to_path, false)
+
 	print("Downloading: %s%s to %s"%[host, path, to_path])
 
 	var http_client := HTTPClient.new()
@@ -301,11 +306,22 @@ static func is_dir_link_absolute(p:String, unsupported_default := false) -> bool
 
 ## Decompresses the [code]zip[/code] file located at [param file_path] [param to_path].[br]
 ## If [param whitelist_starts] is not empty, only file paths that zip relative location
-## starts with any of the given strings will be decompressed.
+## starts with any of the given strings will be decompressed.[br]
+## [param file_path] and [param to_path] may be normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## however, these paths must be absolute.[br]
 static func decompress_zip_async(file_path:String,
 								 to_path:String,
 								 whitelist_starts:Array[String] = []
 								) -> int:
+	file_path = normalize_path_absolute(file_path)
+	if file_path.is_empty():
+		return ERR_FILE_BAD_PATH
+
+	to_path = normalize_path_absolute(to_path)
+	if to_path.is_empty():
+		return ERR_FILE_BAD_PATH
+
 	print("Decompressing %s to %s" % [file_path, to_path])
 
 	var reader := ZIPReader.new()
@@ -341,6 +357,10 @@ static func decompress_zip_async(file_path:String,
 
 ## Compresses the files located at [param source_path] to a [code]zip[/code] file located
 ## at [param to_file].[br]
+## [param source_path] and [param to_file] may be normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## however, these paths must be absolute.[br]
+## [br]
 ## If [param whitelist_starts] is not empty, only file paths that location relative
 ## to the [param source_path] starts with nay of the given strings will be compressed.[br]
 ## If [param include_linked] is true, linked files will also be included in the zip.
@@ -353,6 +373,14 @@ static func compress_zip_async(source_path:String,
 							   include_linked := true,
 							   compression_level:int = -2
 							  ) -> int:
+
+	source_path = normalize_path_absolute(source_path)
+	if source_path.is_empty():
+		return ERR_FILE_BAD_PATH
+
+	to_file = normalize_path_absolute(to_file)
+	if to_file.is_empty():
+		return ERR_FILE_BAD_PATH
 
 	if compression_level <= -2:
 		compression_level = ProjectSettings.get_setting("compression/formats/zlib/compression_level")
@@ -447,16 +475,27 @@ static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 	return found
 
 ## Generates a [code]version.py[/code] file for this
-## specific version of godot to the given [param to_path].
+## specific version of godot [b]into[/b] the given [param to_path].[br]
+## [param to_path] may be a normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
+## If [param to_path] is reliative, its presumed to be relitive to the project's resource directory.
 static func generate_version_py(to_path:String) -> int:
-	assert(Engine.is_editor_hint())
+	var err:int = OK
 
-	var ver_file := FileAccess.open(to_path.path_join("version.py") , FileAccess.WRITE)
+	if not Engine.is_editor_hint():
+		push_warning("'version.py' files are intended for use in editors only.")
+
+	to_path = normalize_path_absolute(to_path, false).trim_suffix("/version.py")
+
+	err = ensure_absolute_dir_exists(to_path)
+
+	if err != OK:
+		return err
+
+	var ver_file := FileAccess.open(to_path.path_join("version.py"), FileAccess.WRITE)
 
 	if ver_file == null:
 		return FileAccess.get_open_error()
-
-	var err:int = OK
 
 	var is_latest:bool = Engine.get_version_info()["status"] == "dev"
 
@@ -540,6 +579,7 @@ static func normalize_path_absolute(path:Variant, no_relative := true) -> String
 ## These paths must always be simplified and absolute filesystem paths only.[br]
 ## [br]
 ## The array in [param successfully_copied_buffer] will have all the paths that were created during copying without any errors appended to it.[br]
+## [br]
 ## NOTE: Depending on the size of data begin moved,
 ## this function can freeze the editor for some time.
 static func copy_recursive(from_path:String,
@@ -610,13 +650,18 @@ static func copy_recursive(from_path:String,
 
 	return OK
 
-## Deletes all files and directories from [param path].
+## Deletes all files and directories from [param path].[br]
+## [param path] may be a normal filesystem path;
+## or a [code]res://[/code], [code]user://[/code], or [code]file://[/code] uri;
+## however, this path must be absolute.[br]
 ## When an error occurs, this function may leave files and folders undeleted.
 ## The array in [param successfully_removed_buffer] will have all the paths that were removed without any errors appended to it.
 ## NOTE: Depending on the size of data being moved,
 ## this function can freeze the editor for some time.
 static func delete_recursive(path:String, successfully_removed_buffer := PackedStringArray()) -> int:
 	var err:int = FAILED
+	path = normalize_path_absolute(path)
+
 	if DirAccess.dir_exists_absolute(path):
 		# first files then directories,
 		# otherwise errors are thrown for non-empty directories being deleted
@@ -628,20 +673,33 @@ static func delete_recursive(path:String, successfully_removed_buffer := PackedS
 	elif FileAccess.file_exists(path):
 		err = DirAccess.remove_absolute(path)
 	else:
-		err = ERR_FILE_NOT_FOUND
+		err = ERR_FILE_BAD_PATH
 
 	if err == OK:
 		successfully_removed_buffer.append(path)
 	return err
 
-## Attempts to recycle a file, falling back to deleting recursively (as moving a directory to the recycling is inherently recursive) it in case that fails for whatever reason (ex. the filesystem does not support it, the OS doesn't support it, etc.)
+## Attempts to recycle a file or directory at the given [param path],
+## falling back to deleting recursively (as moving a directory to the recycling is inherently recursive) it in case that fails for whatever reason (ex. the filesystem does not support it, the OS doesn't support it, etc.).
+## [br]
+## [param path] may be a normal filesystem path;
+## or a [code]res://[/code], [code]user://[/code], or [code]file://[/code] uri;
+## however, this path must be absolute.[br]
 static func try_recycle_or_delete(path:String) -> int:
+	path = normalize_path_absolute(path)
+	if path.is_empty():
+		return ERR_FILE_BAD_PATH
+	
 	var err := OS.move_to_trash(path)
 	if err == OK:
 		return err
 	return delete_recursive(path)
 
-## Attempts to copy files from [param from] to [param to] recursively; before deleting [param from] recursively.
+## Attempts to copy files from [param from] to [param to] recursively; before deleting [param from] recursively.[br]
+## [param from_path] and [param to_path] may be normal filesystem paths;
+## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## however, these paths must be absolute.[br]
+## [br]
 ## When [param undo_partial_copy] is set and an error occurs when copying, all files successfully created from copying will be removed first.
 ## Otherwise, a error happening during copying will result in any successfully coped files to remain where they were.
 static func move_recursive(from:String,
