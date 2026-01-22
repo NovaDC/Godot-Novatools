@@ -68,19 +68,41 @@ func test_delete_recursive():
 	if get_fail_count() - old_fails == 0:
 		_delete_recursive_passed = true
 
-func test_copy_recursive_simple():
+func test_copy_recursive_error_ok():
 	if not _delete_recursive_passed:
 		fail_test("Automatically failed due to failures in this test's dependency 'delete_recursive'")
 		return
 	var root_dir := "res://test_gen"
 	var target_dir := "res://test_copy"
+	
 	var generated := generate_random_nested_files(root_dir)
 	assert_gt(generated.size(), 0)
 	for path in generated:
 		assert_path_does_exist(path)
-	assert_ok(NovaTools.copy_recursive(root_dir, target_dir))
+	
+	var sucessfully_coppied_buffer := PackedStringArray()
+	assert_ok(NovaTools.copy_recursive(root_dir, target_dir, PackedStringArray(), -1, false, sucessfully_coppied_buffer))
+	
+	assert_gt(sucessfully_coppied_buffer.size(), 0)
+	for path in sucessfully_coppied_buffer:
+		assert_path_does_exist(path)
+	
 	assert_ok(NovaTools.delete_recursive(root_dir))
 	assert_ok(NovaTools.delete_recursive(target_dir))
+
+func test_copy_recursive_error_over_max():
+	if not _delete_recursive_passed:
+		fail_test("Automatically failed due to failures in this test's dependency 'delete_recursive'")
+		return
+
+	#we don't need to create these for the test
+	var root_dir := "res://test_gen"
+	var target_dir := "res://test_copy"
+	
+	var sucessfully_coppied_buffer := PackedStringArray()
+	assert_errs(NovaTools.copy_recursive(root_dir, target_dir, PackedStringArray(), 0, false, sucessfully_coppied_buffer), ERR_TIMEOUT)
+
+	assert_eq(sucessfully_coppied_buffer.size(), 0)
 
 func test_copy_recursive_anti_nesting():
 	if not _delete_recursive_passed:
@@ -92,7 +114,11 @@ func test_copy_recursive_anti_nesting():
 	assert_gt(generated.size(), 0)
 	for path in generated:
 		assert_path_does_exist(path)
-	assert_ok(NovaTools.copy_recursive(root_dir, target_dir))
+	var sucessfully_coppied_buffer := PackedStringArray()
+	assert_ok(NovaTools.copy_recursive(root_dir, target_dir, PackedStringArray(), -1, false, sucessfully_coppied_buffer))
+	assert_gt(sucessfully_coppied_buffer.size(), 0)
+	for path in sucessfully_coppied_buffer:
+		assert_path_does_exist(path)
 	assert_ok(NovaTools.delete_recursive(target_dir))
 	assert_ok(NovaTools.delete_recursive(root_dir))
 
@@ -106,13 +132,19 @@ func test_copy_recursive_reverse_anti_nesting():
 	assert_gt(generated.size(), 0)
 	for path in generated:
 		assert_path_does_exist(path)
-	assert_ok(NovaTools.copy_recursive(root_dir, target_dir))
+	var sucessfully_coppied_buffer := PackedStringArray()
+	assert_ok(NovaTools.copy_recursive(root_dir, target_dir, PackedStringArray(), -1, false, sucessfully_coppied_buffer))
+	assert_gt(sucessfully_coppied_buffer.size(), 0)
+	for path in sucessfully_coppied_buffer:
+		assert_path_does_exist(path)
 	assert_ok(NovaTools.delete_recursive(root_dir))
 	assert_ok(NovaTools.delete_recursive(target_dir))
 
 func test_move_recursive():
 	# just tests it's dependencies
-	test_copy_recursive_simple()
+	test_copy_recursive_error_ok()
+	test_copy_recursive_anti_nesting()
+	test_copy_recursive_reverse_anti_nesting()
 	test_delete_recursive()
 
 func test_file_compress_simple():
@@ -145,3 +177,13 @@ func test_file_compress_anti_nesting():
 	assert_ok(await NovaTools.compress_zip_async(root_dir, target_path))
 	assert_file_exists(target_path)
 	assert_ok(NovaTools.delete_recursive(root_dir))
+
+func test_generate_version_py():
+	if not _delete_recursive_passed:
+		fail_test("Automatically failed due to failures in this test's dependency 'delete_recursive'")
+		return
+
+	var to_path := "res://test_temp/"
+	assert_ok(NovaTools.generate_version_py(to_path))
+
+	assert_ok(NovaTools.delete_recursive(to_path))
