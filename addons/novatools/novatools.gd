@@ -1,25 +1,31 @@
 @tool
 @icon("./icon.svg")
-extends Object
 class_name NovaTools
+extends Object
 
 ## NovaTools
 ##
 ## A collection of common static tool functions used in several plugins,
 ## not a class that should be instantiated.
 
+
 ## The command line flag used with godot when wanting
 ## to strip the header message from stdout output.
 const GODOT_NO_HEADER_FLAG := "--no-header"
+
 ## The command line flag used with godot when wanting
 ## to specify the location of the log file.
 const GODOT_LOG_FILE_FLAG := "--log-file"
+
 ## The [EditorSettings] name of the setting for this system's python's executable prefix.
 const PYTHON_PREFIX_EDITOR_SETTINGS_PATH := "filesystem/tools/python/python_prefix"
+
 ## The default python's executable prefix for this system.
 const PYTHON_PREFIX_DEFAULT := "python"
+
 ## The flag used with python when launching a installed module in the command line.
 const PYTHON_MODULE_FLAG := "-m"
+
 ## The name of the godot editor icons theme type.
 const EDITOR_ICONS_THEME_TYPE := "EditorIcons"
 
@@ -133,7 +139,7 @@ static func try_init_editor_setting_path(path:String,
 										 type := TYPE_NIL,
 										 hint := PROPERTY_HINT_NONE,
 										 hint_string := ""
-										):
+										) -> void:
 	var editor_settings := EditorInterface.get_editor_settings()
 	if not editor_settings.has_setting(path):
 		editor_settings.set_setting(path, default)
@@ -157,13 +163,13 @@ static func get_editor_setting_default(path:String, default:Variant = null) -> V
 	return default
 
 ## Safely removes a given editor setting if it is existant and unchanged from it's default value.
-static func remove_unused_editor_setting_path(path:String, default:Variant):
+static func remove_unused_editor_setting_path(path:String, default:Variant) -> void:
 	var editor_settings := EditorInterface.get_editor_settings()
 	if editor_settings.has_setting(path) and editor_settings.get(path) == default:
 		editor_settings.erase(path)
 
 ## Initialises the python prefix editor setting if it is not already initialised.
-static func try_init_python_prefix_editor_setting():
+static func try_init_python_prefix_editor_setting() -> void:
 	try_init_editor_setting_path(PYTHON_PREFIX_EDITOR_SETTINGS_PATH,
 								 PYTHON_PREFIX_DEFAULT,
 								 TYPE_STRING,
@@ -171,7 +177,7 @@ static func try_init_python_prefix_editor_setting():
 								)
 
 ## Deinitializes the python prefix editor setting if it's unchanged from the default.
-static func try_deinit_python_prefix_editor_setting():
+static func try_deinit_python_prefix_editor_setting() -> void:
 	remove_unused_editor_setting_path(PYTHON_PREFIX_EDITOR_SETTINGS_PATH,
 									  PYTHON_PREFIX_DEFAULT
 									 )
@@ -212,7 +218,7 @@ static func launch_python_module_async(module_name:String,
 ## [param to_path] located on this system.[br]
 ## [param to_path] may be a normal filesystem paths;
 ## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
-## If [param to_path] is reliative, its presumed to be relitive to the project's resource directory.
+## If [param to_path] is relative, its presumed to be relative to the project's resource directory.
 ## When set, the headers of the request will be set to [param headers].[br]
 ## When set to a non-negative value, the port of the request will be set to [param port].
 ## When set to a negative value, the port will be determined from the [param host]'s scheme
@@ -478,7 +484,7 @@ static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 ## specific version of godot [b]into[/b] the given [param to_path].[br]
 ## [param to_path] may be a normal filesystem paths;
 ## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
-## If [param to_path] is reliative, its presumed to be relitive to the project's resource directory.
+## If [param to_path] is relative, its presumed to be relative to the project's resource directory.
 static func generate_version_py(to_path:String) -> int:
 	var err:int = OK
 
@@ -545,8 +551,8 @@ static func _recursive_path_normalizer_step(path:Variant) -> String:
 ## If the path is invalid, an empty string is returned.[br]
 ## [Array]s and [PackedStringArray]s will be joined ad a sequence of path segments into a single path.[br]
 ## [br]
-## When [param no_relative] is set (as by defualt), relitive paths will always be invalid (and return an empty string).
-## Otherwise, its assumed that paths are always relitive to the location of "res://" on the local system.[br]
+## When [param no_relative] is set (as by default), relative paths will always be invalid (and return an empty string).
+## Otherwise, its assumed that paths are always relative to the location of "res://" on the local system.[br]
 ## [br]
 ## UID uris are not currently supported.
 static func normalize_path_absolute(path:Variant, no_relative := true) -> String:
@@ -761,7 +767,7 @@ static func normalized_url(url:String, file_relative_base := "") -> String:
 
 ## Take a url, as if it is normalized (using [method normalized_url]) into a file url, return the path from that url.
 ## Otherwise, return [param default].
-## @deprecated This method is unused and unessicary. This method will be removed in later versions.
+## @deprecated This method is unused and unnecessary. This method will be removed in later versions.
 ## This helps normalize res://, user://, and uid:// paths sensibly while also allowing for safe parsing of file:// urls and paths
 static func url_get_file(url:String, default := "") -> String:
 	url = normalized_url(url)
@@ -774,7 +780,7 @@ static func url_get_file(url:String, default := "") -> String:
 
 ## Open a url on the system, always converting res://, user:// and uid:// paths into their respective file system paths before then attempting to open any possible valid file paths in the system file browser first, before falling back to the os's choice for program in the case opening it in the file manager fails
 ## @deprecated [method OS.shell_show_in_file_manager] and [method OS.shell_open] are more precise and prefered. This method will be removed in later versions.
-static func open_uri_file_fixed(url:String, view_into_folders := false):
+static func open_uri_file_fixed(url:String, view_into_folders := false) -> int:
 	url = normalized_url(url)
 
 	if url.begins_with("file://"):
@@ -808,12 +814,12 @@ static func typeof_is_any_array(type:int) -> bool:
 ## This method will also consistently return enums that can also be inherited from parent classes regardless of if the parent is a [Script] or a [ClassDB] defined class (or both, in the case that is ever possible).
 ## While [param name_or_object] accepts many different way to refer to a class, the most consistent (and suggested) method is to
 ## supply the class's name (or the path to the script if the script is an unnamed class) to [param name_or_object] and the enum's name to [param enum_name].
-## However, the following are also acceptable way to look up enums:
-## [ul]
-## If [param name_or_object] is a [Dictionary] that dictionary will be returned verbatim (while still [param enforce_values_of_int], if set). This is the only situation where [param enum_name] is entirely unused, and therefore ignored.
-## If [param name_or_object] is a [Object] that's not a [Script], it will reference that object's class and potentially attached [Script] if possible for enums instead.
-## If [param name_or_object] is a [Script], that script's will be used for getting finding the enum.
-## [/ul]
+## However, the following are also acceptable way to look up enums:[br]
+## [br]
+## - If [param name_or_object] is a [Dictionary] that dictionary will be returned verbatim (while still [param enforce_values_of_int], if set). This is the only situation where [param enum_name] is entirely unused, and therefore ignored.[br]
+## - If [param name_or_object] is a [Object] that's not a [Script], it will reference that object's class and potentially attached [Script] if possible for enums instead.[br]
+## - If [param name_or_object] is a [Script], that script's will be used for getting finding the enum.[br]
+## [br]
 ## Setting [param enforce_values_of_int] will assert that the returned enum must have values of the [int] type. While typically this isn't a concern,
 ## since [Script]'s enums are only defined as constant dictionaries,
 ## making it technically possible for typos of names to include dictionaries with non-[int] values.
@@ -1597,7 +1603,7 @@ static func get_class_name(object:Object) -> String:
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_right] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_right].
-static func focus_chain_right(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_right(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1614,7 +1620,7 @@ static func focus_chain_right(controls:Array[Control], loop:= false, unique_path
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_left] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_left].
-static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1631,7 +1637,7 @@ static func focus_chain_left(controls:Array[Control], loop:= false, unique_paths
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_top] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_top].
-static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1648,7 +1654,7 @@ static func focus_chain_top(controls:Array[Control], loop:= false, unique_paths_
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_neighbor_bottom] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_neighbor_bottom].
-static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1665,7 +1671,7 @@ static func focus_chain_bottom(controls:Array[Control], loop:= false, unique_pat
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_next] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_next].
-static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1684,7 +1690,7 @@ static func focus_chain_next(controls:Array[Control], loop:= false, unique_paths
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_previous] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_previous].
-static func focus_chain_previous(controls:Array[Control], loop:= false, unique_paths_allowed := false):
+static func focus_chain_previous(controls:Array[Control], loop:= false, unique_paths_allowed := false) -> void:
 	var range_max := controls.size()
 	if not loop:
 		range_max -= 1
@@ -1701,7 +1707,7 @@ static func focus_chain_previous(controls:Array[Control], loop:= false, unique_p
 ## NOTE: in there is no node path that can be made from one [Control] to the next, that
 ## [member Control.focus_previous] will be cleared.[br]
 ## NOTE: This overrides any existing paths set for [member Control.focus_previous].
-static func focus_chain_all(controls:Array[Control], loop := false, unique_paths_allowed := false):
+static func focus_chain_all(controls:Array[Control], loop := false, unique_paths_allowed := false) -> void:
 	focus_chain_bottom(controls, loop, unique_paths_allowed)
 	focus_chain_right(controls, loop, unique_paths_allowed)
 	focus_chain_next(controls, loop, unique_paths_allowed)

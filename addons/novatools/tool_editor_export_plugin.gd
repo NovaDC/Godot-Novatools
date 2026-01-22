@@ -16,7 +16,7 @@ var _current_export_flags := 0
 ## INTENDED TO BE VIRTUAL[br]
 ## Called when the pre export tools should be run.
 ## Used as a replacement for [method _export_begin].[br]
-## [param features], [param is_debug], [param path] and [param flags] all corlate to the paramiters
+## [param features], [param is_debug], [param path] and [param flags] all corelate to the paramiters
 ## given to [method _export_begin].
 func _export_begin_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int):
 	assert(false)
@@ -24,7 +24,7 @@ func _export_begin_tool(features:PackedStringArray, is_debug:bool, path:String, 
 ## INTENDED TO BE VIRTUAL[br]
 ## Called when the post export tools should be run.
 ## Used as a replacement for [method _export_end].[br]
-## [param features], [param is_debug], [param path] and [param flags] all corlate to the paramiters
+## [param features], [param is_debug], [param path] and [param flags] all corelate to the paramiters
 ## given to [method _export_begin].
 func _export_end_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int):
 	assert(false)

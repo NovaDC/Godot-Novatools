@@ -40,7 +40,7 @@ func assert_ok(err:int, text := ""):
 		_fail(display)
 
 ## Assert a [param path] of any type (file or folder) exists
-func assert_path_does_exist(path:String, text := ""):
+func assert_path_exists(path:String, text := ""):
 	var exists := FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)
 	var display = str('expected path ',
 						_str(path),

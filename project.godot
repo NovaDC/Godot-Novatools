@@ -17,7 +17,7 @@ config/icon="res://addons/novatools/icon.svg"
 
 [autoload]
 
-TreeWatcher="*res://addons/novatools/./tree_watcher.gd"
+TreeWatcher="*res://addons/novatools/tree_watcher.gd"
 
 [editor_plugins]
 

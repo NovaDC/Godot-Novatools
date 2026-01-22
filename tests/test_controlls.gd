@@ -6,11 +6,11 @@ func test_get_most_relevant_editor_theme():
 
 func test_get_editor_icon_named():
 	var theme = NovaTools.get_most_relevant_editor_theme()
-	var icon_name_list := theme.get_icon_list("EditorIcons")
+	var icon_name_list := theme.get_icon_list(NovaTools.EDITOR_ICONS_THEME_TYPE)
 	if icon_name_list.is_empty():
 		pass_test("Could not access editor icons from the most relevant theme," +
-				"however, this is likely a result of the environment this is run in," +
-				"so this is allowable.")
+				" however, this is likely a result of the environment this is run in," +
+				" so this test will be skipped.")
 	for n in icon_name_list:
 		var same_ic := NovaTools.get_editor_icon_named(n)
 		assert_eq_deep(same_ic, theme.get_icon(n, "EditorIcons"))

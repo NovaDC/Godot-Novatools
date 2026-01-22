@@ -11,6 +11,6 @@ func test_launch_editor_instance_async():
 	assert_ok(await NovaTools.launch_editor_instance_async(["--version"], "", false))
 	assert_ok(await NovaTools.launch_editor_instance_async(["--help"], "", false))
 	var yeah_man_crazy := ["--display-driver headless",
-								"I really hope nobody in the future genuinly names a editor param like this and messes up this test in some dumb way. That would be crazy..."
+								"I really hope nobody in the future genuinely names a editor param like this and messes up this test in some dumb way. That would be crazy..."
 								]
 	assert_errs(await NovaTools.launch_editor_instance_async(yeah_man_crazy, "", false), FAILED)
