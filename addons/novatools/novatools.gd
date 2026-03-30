@@ -100,13 +100,31 @@ static func launch_external_command_async(command:String, args := [], stay_open 
 	elif OS.get_name() == "Linux" or OS.get_name().ends_with("BSD"):
 		new_args = ["-hold"] if stay_open else [] + ["-e", command] + args
 		command = "xterm"
-	elif OS.get_name() == "MacOS" or OS.get_name() == "Darwin":
-		push_warning("BE AWARE: This is not properly tested on\
-					  MacOS/Darwin platforms! Commands may not run as expected!")
-		new_args = ['-n', 'Terminal.app', command]
-		new_args += (['--args'] if args.size() > 0 else [])
-		new_args += args
-		command = 'open'
+	elif OS.get_name() == "macOS":
+		# Build a shell command string so redirections and quoting work correctly.
+		# NOTE: Godot 4 reports "macOS" (mixed case) from OS.get_name().
+		# The previous "MacOS"/"Darwin" checks never matched on Godot 4.
+		var shell_cmd := command
+		for arg in args:
+			# Shell redirect operators must not be quoted.
+			if arg in [">", ">>", "<", "2>", "2>>", "&>"]:
+				shell_cmd += " " + arg
+			else:
+				shell_cmd += " " + ("'%s'" % [arg.replace("'", "'\\''")])
+		if stay_open:
+			# Open a visible Terminal window via osascript.
+			shell_cmd += "; echo ''; echo 'Press Enter to close...'; read"
+			new_args = ["-e",
+						"tell application \"Terminal\"",
+						"-e", "activate",
+						"-e", "do script \"%s\"" % [shell_cmd.replace("\"", "\\\"")],
+						"-e", "end tell"
+						]
+			command = "osascript"
+		else:
+			# Run silently via /bin/sh so shell redirections (>) work.
+			new_args = ["-c", shell_cmd]
+			command = "/bin/sh"
 	else:
 		assert(false, "System terminal not found, cannot run command.")
 
