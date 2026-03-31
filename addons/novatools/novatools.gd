@@ -235,8 +235,13 @@ static func show_wait_window_while_async(message:String,
 
 	return ret
 
-## Runs a command in the system's terminal asynchronously,
-## waiting for it to finish and returning it's exit code.
+## Runs a [param command] in the system's terminal asynchronously,
+## waiting for it to finish.[br]
+## This returns the exit code of the [b]terminal[/b] run. Note that this
+## may not always correlate to the exit code of the [param command] run within that terminal.
+## It depends on the behaviour of the specific terminal run. For example,
+## Window's [code]cmd.exe[/code] will always return [code]0[/code]
+## when run without staying open regardless of the [param command]'s exit code.
 static func launch_external_command_async(command:String, args := [], stay_open := true) -> int:
 	var new_args:Array = []
 	# NOTE: It is strictly necessary that this function opens some
