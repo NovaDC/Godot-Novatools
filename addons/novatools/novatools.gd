@@ -131,7 +131,8 @@ static func launch_editor_instance_async(args := [],
 	var ret_code := await launch_external_command_async(OS.get_executable_path(), args, stay_open)
 	return OK if ret_code == 0 else FAILED
 
-## Safely initialises a setting in the [EditorSettings] if it is not already made.
+## Safely initialises a setting in the [EditorSettings]
+## preserving it if already set.[br]
 ## If [param type] is set to [constant Variant.TYPE_NIL],
 ## the type of the setting will be assumed form the [param default] value.
 static func try_init_editor_setting_path(path:String,
@@ -144,16 +145,16 @@ static func try_init_editor_setting_path(path:String,
 	if not editor_settings.has_setting(path):
 		editor_settings.set_setting(path, default)
 
-		editor_settings.set_initial_value(path, default, true)
-		var prop_info = {
-			"name" : path,
-			"type" : type if type != TYPE_NIL else typeof(default),
-		}
-		if hint != PROPERTY_HINT_NONE:
-			prop_info["hint"] = hint
-			if hint_string != "":
-				prop_info["hint_string"] = hint_string
-		editor_settings.add_property_info(prop_info)
+	editor_settings.set_initial_value(path, default, true)
+	var prop_info = {
+		"name" : path,
+		"type" : type if type != TYPE_NIL else typeof(default),
+	}
+	if hint != PROPERTY_HINT_NONE:
+		prop_info["hint"] = hint
+		if hint_string != "":
+			prop_info["hint_string"] = hint_string
+	editor_settings.add_property_info(prop_info)
 
 ## Gets the set value form the given editor setting, returning [param default] if it is not set.
 static func get_editor_setting_default(path:String, default:Variant = null) -> Variant:
