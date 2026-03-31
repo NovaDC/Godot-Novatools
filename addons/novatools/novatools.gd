@@ -802,7 +802,7 @@ static func get_most_relevant_editor_theme() -> Theme:
 ## Check if the [enum Variant.Type] enum value [param type] is some from of "Packed Array". Note that this check uses the string name of the variant type to determine if its a packed array or not, so this may be compatible with other extention that provide more packed array types
 static func typeof_is_packed_array(type:int) -> bool:
 	var s := type_string(type)
-	return (s.begins_with("Packed") and s.ends_with("Array") and s.length() > ("Packed".length() + "Array".length()))
+	return s.begins_with("Packed") and s.ends_with("Array")
 
 ## Check if the [enum Variant.Type] enum value [param type] is some from "Array", either by being [constant Variant.TYPE_ARRAY] or by [method typeof_is_packed_array] returning true.
 static func typeof_is_any_array(type:int) -> bool:
