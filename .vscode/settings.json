@@ -65,14 +65,6 @@
 		//Cspell has trouble with the utf acronyms
 		"((UTF)|([uU]tf))([-_ ]?(8|(16)))?"
 	],
-	"cSpell.import": [
-		"@cspell/dict-people-names/cspell-ext.json",
-		"@cspell/dict-pokemon/cspell-ext.json",
-		"@cspell/dict-scientific-terms-gb/cspell-ext.json",
-		"@cspell/dict-scientific-terms-us/cspell-ext.json",
-		"@cspell/dict-vim/cspell-ext.json",
-		"@cspell/dict-win32/cspell-ext.json",
-	],
 	"cSpell.overrides": [
 		{
 			"filename": "SConstruct",

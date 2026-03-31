@@ -1,44 +1,13 @@
 # Normalize EOL for all files that Git considers text files.
 * text=auto eol=lf whitespace=trailing-space,space-before-tab
 
-resources/** -text filter=lfs diff=lfs merge=lfs
-**/resources/** -text filter=lfs diff=lfs merge=lfs
-
-/android/ binary filter=lfs diff=lfs merge=lfs
+*.bin -text
+*.txt text
 
 **/.gitkeep -text
 
-*.gd text diff=python
-*.py text diff=python
-SConstruct text diff=python
-
-*.md text diff=md
-*.txt text diff=md
-
-*.c text diff=cpp
-*.cpp text diff=cpp
-*.h text diff=cpp
-*.hpp text diff=cpp
-
-*.cs text diff=cs
-
-*.tres text diff=ini
-*.tscn text diff=ini
-*.import text diff=ini
-*.cfg text diff=ini
-
-*.html text diff=html
-*.htm text diff=html
-*.svg text diff=html
-*.css text diff=css
-*.js text
-
-*.scn binary
-*.res binary
-
-*.doc binary merge=word
-*.docx binary merge=word
-*.pdf binary filter=lfs diff=lfs merge=lfs
+/exports/** -text filter=lfs diff=lfs merge=lfs
+/android/** -text filter=lfs diff=lfs merge=lfs
 
 *.7z binary filter=lfs diff=lfs merge=lfs
 *.zip binary filter=lfs diff=lfs merge=lfs
@@ -49,21 +18,23 @@ SConstruct text diff=python
 
 *.jar binary filter=lfs diff=lfs merge=lfs
 
+*.a binary filter=lfs diff=lfs merge=lfs
+
 *.exe binary filter=lfs diff=lfs merge=lfs
+*.dll binary filter=lfs diff=lfs merge=lfs
 
 *.elf binary filter=lfs diff=lfs merge=lfs
-*.deb binary filter=lfs diff=lfs merge=lfs
-*.appimage binary filter=lfs diff=lfs merge=lfs
 *.x86_64 binary filter=lfs diff=lfs merge=lfs
 *.x86_32 binary filter=lfs diff=lfs merge=lfs
 *.arm64 binary filter=lfs diff=lfs merge=lfs
 *.arm32 binary filter=lfs diff=lfs merge=lfs
+*.so binary filter=lfs diff=lfs merge=lfs
 
-*.bmp binary filter=lfs diff=lfs merge=lfs
-*.png binary filter=lfs diff=lfs merge=lfs
-*.jpg binary filter=lfs diff=lfs merge=lfs
-*.jpeg binary filter=lfs diff=lfs merge=lfs
-*.webp binary filter=lfs diff=lfs merge=lfs
+*.deb binary filter=lfs diff=lfs merge=lfs
+*.appimage binary filter=lfs diff=lfs merge=lfs
+
+*.apk binary filter=lfs diff=lfs merge=lfs
+*.aab binary filter=lfs diff=lfs merge=lfs
 
 *.wav binary filter=lfs diff=lfs merge=lfs
 *.mp3 binary filter=lfs diff=lfs merge=lfs
@@ -73,3 +44,65 @@ SConstruct text diff=python
 *.avi binary filter=lfs diff=lfs merge=lfs
 *.mp4 binary filter=lfs diff=lfs merge=lfs
 *.mov binary filter=lfs diff=lfs merge=lfs
+*.mkv binary filter=lfs diff=lfs merge=lfs
+*.ogv binary filter=lfs diff=lfs merge=lfs
+
+*.blend binary filter=lfs diff=lfs merge=lfs
+*.blend1 binary filter=lfs diff=lfs merge=lfs
+*.usd binary filter=lfs diff=lfs merge=lfs
+*.usdc binary filter=lfs diff=lfs merge=lfs
+*.stl binary filter=lfs diff=lfs merge=lfs
+*.obj binary filter=lfs diff=lfs merge=lfs
+*.fbx binary filter=lfs diff=lfs merge=lfs
+*.glb binary filter=lfs diff=lfs merge=lfs
+*.gltf text
+
+*.bmp binary filter=lfs diff=lfs merge=lfs
+*.png binary filter=lfs diff=lfs merge=lfs
+*.jpg binary filter=lfs diff=lfs merge=lfs
+*.jpeg binary filter=lfs diff=lfs merge=lfs
+*.gif binary filter=lfs diff=lfs merge=lfs
+*.webp binary filter=lfs diff=lfs merge=lfs
+*.psd binary filter=lfs diff=lfs merge=lfs
+*.aseprite binary filter=lfs diff=lfs merge=lfs
+
+*.doc binary merge=word
+*.docx binary merge=word
+*.pdf binary filter=lfs diff=lfs merge=lfs
+
+*.html text diff=html
+*.htm text diff=html
+*.svg text diff=html
+*.svgz binary filter=lfs diff=lfs merge=lfs
+*.css text diff=css
+*.js text
+*.json text
+*.wasm binary filter=lfs diff=lfs merge=lfs
+
+*.ini text diff=ini
+
+*.md text diff=md
+*.txt text diff=md
+README text diff=md
+LICENCE text diff=md
+
+*.godot text diff=ini
+*.tres text diff=ini
+*.tscn text diff=ini
+*.import text diff=ini
+*.cfg text diff=ini
+*.uid text
+
+*.scn binary
+*.res binary
+
+*.gd text diff=python
+*.py text diff=python
+SConstruct text diff=python
+
+*.c text diff=cpp
+*.cpp text diff=cpp
+*.h text diff=cpp
+*.hpp text diff=cpp
+
+*.cs text diff=cs
