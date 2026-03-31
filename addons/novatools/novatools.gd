@@ -239,21 +239,20 @@ static func show_wait_window_while_async(message:String,
 ## waiting for it to finish and returning it's exit code.
 static func launch_external_command_async(command:String, args := [], stay_open := true) -> int:
 	var new_args:Array = []
-	if OS.get_name() == "Windows":
+	# NOTE: It is strictly necessary that this function opens some
+	# form of interactive terminal.
+	# These commands should NEVER be run without one.
+	# The user MUST be able to view the active stdout of the command,
+	# and be able to interact with it in such a way that they can
+	# cancel it (for example, using a keyboard interrupt),
+	# as well as preferably having full stdin control as well.
+	var os_name := OS.get_name().to_lower()
+	if os_name == "windows":
 		new_args = ["/k" if stay_open else "/c", command] + args
 		command = "cmd.exe"
-	elif OS.get_name() == "Linux" or OS.get_name().ends_with("BSD"):
-		new_args = ["-hold"] if stay_open else [] + ["-e", command] + args
+	elif os_name.ends_with("bsd") or OS.get_name() == "linux":
+		new_args = (["-hold"] if stay_open else []) + ["-e", command] + args
 		command = "xterm"
-	elif OS.get_name() == "macOS" or OS.get_name() == "Darwin":
-		var warn := """BE AWARE: This is not properly tested on macOS/Darwin platforms!
-						Commands may not run as expected!"""
-		push_warning(warn)
-		new_args = ['-n', 'Terminal.app', command]
-		if args.size() > 0:
-			new_args.append('--args')
-			new_args += args
-		command = 'open'
 	else:
 		assert(false, "System terminal not found, cannot run command.")
 
