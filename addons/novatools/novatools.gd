@@ -177,9 +177,9 @@ const EDITOR_ICONS_THEME_TYPE := "EditorIcons"
 ## A QOL function that popups a file dialog in the editor and runs a given callable
 ## when a file is confirmed.
 static func quick_editor_file_dialog(when_confirmed:Callable,
-										title:String,
-										filters:=PackedStringArray(),
-										start_path:String = "res://",
+										title := "Choose a path...",
+										filters := PackedStringArray(),
+										start_path := "res://",
 										file_mode := EditorFileDialog.FILE_MODE_SAVE_FILE,
 										access := EditorFileDialog.ACCESS_FILESYSTEM
 										) -> String:
@@ -209,7 +209,7 @@ static func show_wait_window_while_async(message:String,
 											function:Callable,
 											min_size := Vector2i.ONE * 100
 											) -> Variant:
-	#HOW IS THIS NOT AN EXPOSED FEATURE GODOT `ProgressDialog` IS RIGHT THERE
+	# HOW IS THIS NOT AN EXPOSED FEATURE GODOT `ProgressDialog` IS RIGHT THERE
 	var lab := RichTextLabel.new()
 	lab.text = message
 	lab.bbcode_enabled = true
@@ -245,8 +245,8 @@ static func show_wait_window_while_async(message:String,
 static func launch_external_command_async(command:String, args := [], stay_open := true) -> int:
 	var new_args:Array = []
 	# NOTE: It is strictly necessary that this function opens some
-	# form of interactive terminal.
-	# These commands should NEVER be run without one.
+	# form of interactive terminal for the user.
+	# The commands should NEVER be run without one.
 	# The user MUST be able to view the active stdout of the command,
 	# and be able to interact with it in such a way that they can
 	# cancel it (for example, using a keyboard interrupt),
@@ -333,7 +333,6 @@ static func try_deinit_python_prefix_editor_setting() -> void:
 	remove_unused_editor_setting_path(PYTHON_PREFIX_EDITOR_SETTINGS_PATH,
 										PYTHON_PREFIX_DEFAULT
 										)
-
 
 ## Launches a python script/file in a separate terminal window asynchronously.
 ## Returns the exit code of the script.[br]
@@ -490,7 +489,7 @@ static func decompress_zip_async(file_path:String,
 
 	for internal_path in reader.get_files():
 		if (not whitelist_starts.is_empty() and
-			not whitelist_starts.any(func (start:String): return internal_path.begins_with(start))):
+			not whitelist_starts.any(func(start:String): return internal_path.begins_with(start))):
 			continue
 
 		if internal_path.ends_with("/"):
@@ -568,12 +567,12 @@ static func compress_zip_async(source_path:String,
 		return err
 
 	var files = get_children_files_recursive(source_path)
-	var filter = func (p:String):
+	var filter = func(p:String):
 		if to_file in p:
 			return false
 		if whitelist_starts.is_empty():
 			return true
-		return whitelist_starts.any(func (start:String): return p.begins_with(start))
+		return whitelist_starts.any(func(start:String): return p.begins_with(start))
 	files = Array(files).filter(filter)
 	if not include_linked and OS.get_name() in ["Windows",
 												"macOS",
@@ -593,7 +592,7 @@ static func compress_zip_async(source_path:String,
 	err = packer.open(to_file, ZIPPacker.APPEND_CREATE)
 	if err == OK:
 		for file_path in files:
-			assert(file_path.begins_with(source_path))
+			assert(file_path.begins_with(source_path)) # sanity check
 			var internal_path = file_path.substr(source_path.length())
 
 			var data := FileAccess.get_file_as_bytes(file_path)
@@ -654,7 +653,7 @@ static func get_children_dir_recursive(from_path:String,
 ## Returns the absolute paths to all files located under the given [param from_path].
 static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 	var found = Array(DirAccess.get_files_at(from_path))
-	found = found.map(func (r:String): return from_path.path_join(r))
+	found = found.map(func(r:String): return from_path.path_join(r))
 	found = found.map(normalize_path_absolute)
 	found = PackedStringArray(found)
 	for dir in DirAccess.get_directories_at(from_path):
@@ -752,13 +751,14 @@ static func normalize_path_absolute(path:Variant, no_relative := true) -> String
 		if no_relative:
 			return ""
 		norm_path = "res://".path_join(norm_path.trim_prefix("./"))
+
 	norm_path = norm_path.simplify_path()
 
 	if norm_path.begins_with("res:") or norm_path.begins_with("user:"):
 		norm_path = ProjectSettings.globalize_path(norm_path)
 	else:
 		norm_path = norm_path.trim_prefix("file://").trim_prefix("file:")
-		if norm_path.is_empty(): #woops, stripped away the root
+		if norm_path.is_empty(): # woops, stripped away a path to root
 			norm_path = "/"
 
 	return norm_path
@@ -855,7 +855,8 @@ static func copy_recursive(from_path:String,
 ## however, this path must be absolute.[br]
 ## When an error occurs, this function may leave files and folders undeleted.
 ## The array in [param successfully_removed_buffer] will have all the paths that
-## were removed without any errors appended to it.
+## were removed without any errors appended to it.[br]
+## [br]
 ## NOTE: Depending on the size of data being moved,
 ## this function can freeze the editor for some time.
 static func delete_recursive(path:String,
@@ -939,10 +940,6 @@ static func move_recursive(from:String,
 ## and all identifiable file paths without the proper scheme will have the
 ## [code]file://[/code] scheme prepended.[br]
 ## This allows for functions like [method OS.shell_open] to compatibly
-## open more types of urls, and ensures that paths are wrapped safely,
-## to avoid potential malicious url collisions.
-static func normalized_url(url:String, file_relative_base := "") -> String:
-	var exe_dir := OS.get_executable_path().get_base_dir()
 	var usr_dir := OS.get_user_data_dir()
 	var drive_list:Array = range(DirAccess.get_drive_count())
 	drive_list = drive_list.map(DirAccess.get_drive_name).filter(func (s): return not s.is_empty())
@@ -1300,7 +1297,6 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return OS.is_userfs_persistent()
 			DebugInfoTypes.RUN_SCRIPT_LANGUAGE_NAMES:
 				var langs := range(Engine.get_script_language_count())
-				langs = langs.map(func (si): return Engine.get_script_language(si).get_class())
 				return PackedStringArray(langs)
 			DebugInfoTypes.RUN_SINGLETON_NAMES:
 				return Engine.get_singleton_list()
@@ -1548,7 +1544,6 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return XRServer.get_interface_count()
 			DebugInfoTypes.XR_INTERFACE_NAMES:
 				var names := range(XRServer.get_interface_count())
-				names = names.map(func (i): return XRServer.get_interface(i).get_name())
 				return PackedStringArray(names)
 
 			DebugInfoTypes.ENGINE_VERSION:
