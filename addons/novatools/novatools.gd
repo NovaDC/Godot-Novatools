@@ -1134,7 +1134,7 @@ static func enum_extract_dict(name_or_object:Variant,
 			if vt != TYPE_NIL: #If the values are variant, we should check them manually
 				assert(vt == TYPE_INT) #if they are [Variant typed]
 			else:
-				assert(name_or_object.values().all(func (v): return typeof(v) == TYPE_INT))
+				assert(name_or_object.values().all(func(v): return typeof(v) == TYPE_INT))
 				vt = TYPE_INT
 
 		if typed_dicts and (kt != TYPE_NIL or vt != TYPE_NIL):
