@@ -373,7 +373,7 @@ static func launch_python_module_async(module_name:String,
 ## Downloads a file located at a specific http [param host]'s [param path]
 ## [param to_path] located on this system.[br]
 ## [param to_path] may be a normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris.
 ## If [param to_path] is relative, its presumed to be relative to the project's resource directory.
 ## When set, the headers of the request will be set to [param headers].[br]
 ## When set to a non-negative value, the port of the request will be set to [param port].
@@ -471,7 +471,7 @@ static func is_dir_link_absolute(p:String, unsupported_default := false) -> bool
 ## If [param whitelist_starts] is not empty, only file paths that zip relative location
 ## starts with any of the given strings will be decompressed.[br]
 ## [param file_path] and [param to_path] may be normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris;
 ## however, these paths must be absolute.[br]
 static func decompress_zip_async(file_path:String,
 									to_path:String,
@@ -521,7 +521,7 @@ static func decompress_zip_async(file_path:String,
 ## Compresses the files located at [param source_path] to a [code]zip[/code] file located
 ## at [param to_file].[br]
 ## [param source_path] and [param to_file] may be normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris;
 ## however, these paths must be absolute.[br]
 ## [br]
 ## If [param whitelist_starts] is not empty, only file paths that location relative
@@ -669,7 +669,7 @@ static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 ## Generates a [code]version.py[/code] file for this
 ## specific version of godot [b]into[/b] the given [param to_path].[br]
 ## [param to_path] may be a normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris.
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris.
 ## If [param to_path] is relative, its presumed to be relative to the project's resource directory.
 static func generate_version_py(to_path:String) -> int:
 	var err:int = OK
@@ -733,23 +733,40 @@ static func _recursive_path_normalizer_step(path:Variant) -> String:
 			return ""
 	return fixed_path.replace("\\", "/").strip_edges().strip_escapes()
 
-## Normalizes [code]res://[/code], [code]user://[/code], and [code]file://[/code]
+## Normalizes [code]res://[/code], [code]user://[/code],
+## [code]uid://[/code], and [code]file://[/code]
 ## uris as well as other paths to their absolute
 ## representation on the system's filesystem.[br]
 ## If the path is invalid, an empty string is returned.[br]
 ## [Array]s and [PackedStringArray]s will be joined as a sequence of path segments
 ## into a single path.[br]
+## If [param path] is a [int], it's presumed that it's a resource uid,
+## and will be normalized as such.[br]
 ## [br]
 ## When [param no_relative] is set (as by default),
 ## relative paths will always be invalid (and return an empty string).
 ## Otherwise, its assumed that paths are always relative to the location of
 ## [code]res://[/code] on the local system.[br]
 ## [br]
-## [code]uid://[/code] uris are not currently supported.
+## When [code]not OS.has_feature("editor")[/code] and [param path] would correlate to a
+## resource path (either by itself being a [code]res://[/code],
+## being a [code]uid://[/code] path which correlates to a [code]res://[/code] path,
+## or by being a relative path while [param no_relative] is unset),
+## an empty string will always be returned.[br]
+## This is caused by the same reason why [method ProjectSettings.globalize_path]
+## also only works for resource paths in editor. When exported, resource files
+## may not always correlate to a file on the files system, but instead be packed inside
+## the executable itself, or in a [code].pck[/code] bundle.[br]
+## Resolving this is outside the scope of this function,
+## and should be handled on a case by case basis instead.
 static func normalize_path_absolute(path:Variant, no_relative := true) -> String:
+	# uid paths just map back to res paths
+	if typeof(path) == TYPE_INT or path.begins_with("uid:"):
+		path = uid_to_res(path)
+
 	var norm_path := _recursive_path_normalizer_step(path)
 
-	if norm_path.begins_with("uid:"):
+	if norm_path.is_empty():
 		return ""
 
 	if norm_path.is_relative_path():
@@ -796,7 +813,7 @@ static func uid_to_res(uid:Variant) -> String:
 
 ## Copies all files and directories from [param from_path] to [param to_path].[br]
 ## [param from_path] and [param to_path] may be normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris;
 ## however, these paths must be absolute.[br]
 ## [br]
 ## All paths set in [param ignore_folders] will be skipped when copying.
@@ -882,7 +899,7 @@ static func copy_recursive(from_path:String,
 
 ## Deletes all files and directories from [param path].[br]
 ## [param path] may be a normal filesystem path;
-## or a [code]res://[/code], [code]user://[/code], or [code]file://[/code] uri;
+## or a [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uri;
 ## however, this path must be absolute.[br]
 ## When an error occurs, this function may leave files and folders undeleted.
 ## The array in [param successfully_removed_buffer] will have all the paths that
@@ -920,7 +937,7 @@ static func delete_recursive(path:String,
 ## (ex. the filesystem does not support it, the OS doesn't support it, etc.).[br]
 ## [br]
 ## [param path] may be a normal filesystem path;
-## or a [code]res://[/code], [code]user://[/code], or [code]file://[/code] uri;
+## or a [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uri;
 ## however, it must always be absolute.[br]
 static func try_recycle_or_delete(path:String) -> int:
 	path = normalize_path_absolute(path)
@@ -935,7 +952,7 @@ static func try_recycle_or_delete(path:String) -> int:
 ## Attempts to copy files from [param from] to [param to] recursively,
 ## before deleting [param from] recursively.[br]
 ## [param from_path] and [param to_path] may be normal filesystem paths;
-## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
+## or [code]res://[/code], [code]user://[/code], [code]uid://[/code], or [code]file://[/code] uris;
 ## however, these paths must be absolute.[br]
 ## [br]
 ## When [param undo_partial_copy] is set and an error occurs when copying,
@@ -965,60 +982,36 @@ static func move_recursive(from:String,
 				delete_recursive(from)
 	return err
 
-## Convert a url into a form that is relevant outside this application.
-## For example, all [code]res://[/code], [code]user://[/code], and [code]uid://[/code]
+## Convert a url into a form that is relevant outside this project.
+## All [code]res://[/code], [code]user://[/code], and [code]uid://[/code]
 ## urls are converted to their file path forms,
 ## and all identifiable file paths without the proper scheme will have the
 ## [code]file://[/code] scheme prepended.[br]
-## This allows for functions like [method OS.shell_open] to compatibly
-	var usr_dir := OS.get_user_data_dir()
-	var drive_list:Array = range(DirAccess.get_drive_count())
-	drive_list = drive_list.map(DirAccess.get_drive_name).filter(func (s): return not s.is_empty())
+## If the file uri could not be properly normalised, an empty string will be returned.
+## For more information on where and why this may happen,
+## see [method normalize_path_absolute].[br]
+## This can assist functions like [method OS.shell_open]
+## that would otherwise be unaware of Godot's internal uri schemes,
+## as well as normalizing [code]file://[/code] paths.
+static func normalized_url(url:String) -> String:
+	# Windows drive can possibly be in the form of "C://path/...",
+	# before normalization, and NTFS drive have this really niche feature called ADS,
+	# which could also result in a path to a directory like
+	# ".../path/dir:ADS" or ".../path/dir:ADS:$DATA".
+	# This might confuse a simple "://" detection.
+	# Checking if it starts with the possible root drives would be good fallback.
+	var drive_paths:Array = range(DirAccess.get_drive_count()).map(DirAccess.get_drive_name)
+	var is_raw_path:bool = "://" not in url or drive_paths.any(func(s): return url.begins_with(s))
 
-	if file_relative_base == "":
-		file_relative_base = exe_dir
-
-	#lets manually normalize file paths without the
-	# file://" scheme prefix to help improve the selection
-	# of using the browser manually
-	var file_mode := url.begins_with("file://")
-
-	if url.begins_with("res://") or url.begins_with("uid://"):
-		file_mode = true
-		if Engine.is_editor_hint():
-			url = ProjectSettings.globalize_path(url)
-		elif ResourceLoader.exists(url):
-			# resource paths aren't as simple as being relative to some directory,
-			# we need to check with the resource loader
-			url = ResourceLoader.load(url, "", ResourceLoader.CACHE_MODE_REUSE).resource_path
-			assert (DirAccess.dir_exists_absolute(url) or
-					DirAccess.dir_exists_absolute(url.get_base_dir())
-					)
-
-	if url.begins_with("user://"):
-		file_mode = true
-		if Engine.is_editor_hint():
-			# sure, test builds might have access to the ProjectSettings class to,
-			# but you make debug builds to debug how it acts on potentially non editor devices...
-			url = ProjectSettings.globalize_path(url)
-		else:
-			url = usr_dir.path_join(url.get_slice("://", 1))
-
-	if url.is_absolute_path() and DirAccess.dir_exists_absolute(url):
-		file_mode = true
-	elif url.is_relative_path():
-		if DirAccess.dir_exists_absolute(usr_dir.path_join(url)):
-			url = usr_dir.path_join(url)
-			file_mode = true
-	# NOTE [b]all[/b] possible urls don't [i]need[/i] to contain
-	# "://" exactly to be valid, but valid windows file paths may also
-	# contain ":/", so we should only use this to guard against wild
-	# collisions between valid urls and paths
-	elif "://" in url and drive_list.any(func (s): url.begins_with(s)):
-		file_mode = true
-
-	if file_mode:
-		url = "file://" + normalize_path_absolute(url)
+	if (not is_raw_path) or ["file:",
+							"res:",
+							"user:",
+							"uid:"
+							].any(func(s): return url.begins_with(s)):
+		var norm_path := normalize_path_absolute(url)
+		if norm_path.is_empty():
+			return ""
+		url = "file://" + norm_path
 
 	return url
 
