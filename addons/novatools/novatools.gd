@@ -768,6 +768,32 @@ static func normalize_path_absolute(path:Variant, no_relative := true) -> String
 
 	return norm_path
 
+## Converts a provided [param uid] into its [code]res://[/code]
+## path equivalent, if possible.[br]
+## If the uid was invalid, or if the uid has not associated path,
+## a blank string is returned.
+## The provided [param uid] can be the [int] uid;
+## or a [String], [StringName], [Array], or [PackedStringArray] that
+## correlates to a [code]uid://[/code] path.
+## THis function is compatible with version of godot that don't support
+## [code]uid://[/code] paths, instead choosing to always return an empty string.
+static func uid_to_res(uid:Variant) -> String:
+	var resource_uid = Engine.get_singleton("ResourceUID")
+	if resource_uid == null:
+		return ""
+
+	var id:int
+	if typeof(uid) != TYPE_INT:
+		uid = _recursive_path_normalizer_step(uid)
+		id = resource_uid.text_to_id(uid)
+	else:
+		id = uid
+
+	if not resource_uid.has_id(id):
+		return ""
+
+	return resource_uid.uid_to_path(id)
+
 ## Copies all files and directories from [param from_path] to [param to_path].[br]
 ## [param from_path] and [param to_path] may be normal filesystem paths;
 ## or [code]res://[/code], [code]user://[/code], or [code]file://[/code] uris;
