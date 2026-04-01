@@ -562,7 +562,7 @@ static func compress_zip_async(source_path:String,
 								)
 	if not supports:
 		# We're only allowed to use this level in the first place...
-		assert(comp_level == proj_comp_level)
+		return ERR_INVALID_PARAMETER
 
 	if not DirAccess.dir_exists_absolute(source_path):
 		return ERR_FILE_NOT_FOUND
