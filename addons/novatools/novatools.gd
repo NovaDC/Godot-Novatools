@@ -1020,34 +1020,6 @@ static func normalized_url(url:String) -> String:
 
 	return url
 
-## Take a url, as if it is normalized (using [method normalized_url]) as a file url,
-## and extract the filesystem path from it; otherwise, return [param default].[br]
-## This helps normalize [code]res://[/code], [code]user://[/code], and [code]uid://[/code]
-## paths sensibly while also allowing for safe parsing of [code]file://[/code] urls
-## and paths.
-## @deprecated This method is unused and unnecessary. This method will be removed in later versions.
-static func url_get_file(url:String, default := "") -> String:
-	url = normalized_url(url)
-	if not "://" in url:
-		return default
-	var s := url.split(":/", true, 1)
-	if s[0] != "file":
-		return default
-	return s[1]
-
-## Open a url on the system, always converting [code]res://[/code], [code]user://[/code] paths
-## into their respective file system paths before then attempting to open any possible
-## valid file paths in the system file browser first,
-## falling back to the OS's choice for program in the case opening it in the file manager fails.
-## @deprecated [method OS.shell_show_in_file_manager] and [method OS.shell_open] are more precise
-## and prefered. This method will be removed in later versions.
-static func open_uri_file_fixed(url:String, view_into_folders := false) -> int:
-	url = normalized_url(url)
-
-	if url.begins_with("file://"):
-		return OS.shell_show_in_file_manager(url.get_slice("://", 1), view_into_folders)
-	return OS.shell_open(url)
-
 ## Gets the theme that is closest to the editor's theme,
 ## even when this isn't actually the editor.
 ## In the case this has no editor theme,
