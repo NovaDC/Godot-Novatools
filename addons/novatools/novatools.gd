@@ -176,15 +176,17 @@ const EDITOR_ICONS_THEME_TYPE := "EditorIcons"
 
 ## A QOL function that popups a file dialog in the editor and runs a given callable
 ## when a file is confirmed.
-static func quick_editor_file_dialog(when_confirmed:Callable,
+static func quick_editor_file_dialog(when_confirmed := Callable(),
 										title := "Choose a path...",
 										filters := PackedStringArray(),
 										start_path := "res://",
 										file_mode := EditorFileDialog.FILE_MODE_SAVE_FILE,
 										access := EditorFileDialog.ACCESS_FILESYSTEM
 										) -> String:
-	var result := ""
-	var confirmed := false
+	if not Engine.is_editor_hint():
+		return ""
+
+	var choice := ""
 
 	var file_select := EditorFileDialog.new()
 	file_select.visible = false
@@ -194,12 +196,15 @@ static func quick_editor_file_dialog(when_confirmed:Callable,
 	file_select.file_mode = file_mode
 	file_select.title = title
 	file_select.set_filters(filters)
-	file_select.confirmed.connect(func (): await when_confirmed.call(file_select.current_dir))
+	file_select.confirmed.connect(func(): choice = file_select.current_dir)
 	EditorInterface.popup_dialog_centered(file_select)
 	await file_select.visibility_changed
 	file_select.queue_free()
 
-	return result
+	if not choice.is_empty() and when_confirmed.is_valid():
+		await when_confirmed.call(choice)
+
+	return choice
 
 ## Popups a simple popup in front of the editor screen, blocking any editor input,
 ## with a given bbcode formatted [param message]
