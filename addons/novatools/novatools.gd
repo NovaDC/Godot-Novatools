@@ -776,7 +776,12 @@ static func normalize_path_absolute(path:Variant, no_relative := true) -> String
 
 	norm_path = norm_path.simplify_path()
 
-	if norm_path.begins_with("res:") or norm_path.begins_with("user:"):
+	if norm_path.begins_with("res:"):
+		if OS.has_feature("editor"):
+			norm_path = ProjectSettings.globalize_path(norm_path)
+		else:
+			return ""
+	elif norm_path.begins_with("user:"):
 		norm_path = ProjectSettings.globalize_path(norm_path)
 	else:
 		norm_path = norm_path.trim_prefix("file://").trim_prefix("file:")
@@ -1321,6 +1326,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return OS.is_userfs_persistent()
 			DebugInfoTypes.RUN_SCRIPT_LANGUAGE_NAMES:
 				var langs := range(Engine.get_script_language_count())
+				langs = langs.map(func(si): return Engine.get_script_language(si).get_class())
 				return PackedStringArray(langs)
 			DebugInfoTypes.RUN_SINGLETON_NAMES:
 				return Engine.get_singleton_list()
@@ -1568,6 +1574,7 @@ static func get_debug_info(name_or_id:Variant, default:Variant = null) -> Varian
 				return XRServer.get_interface_count()
 			DebugInfoTypes.XR_INTERFACE_NAMES:
 				var names := range(XRServer.get_interface_count())
+				names = names.map(func(i): return XRServer.get_interface(i).get_name())
 				return PackedStringArray(names)
 
 			DebugInfoTypes.ENGINE_VERSION:
