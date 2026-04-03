@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Godot-Novatools"
 config/description="A collection of base classes and static functions used in multiple plugins made by NovaDC."
-config/version="v1.5.0.1"
+config/version="v1.5.1.0"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://addons/novatools/icon.svg"
 
