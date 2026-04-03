@@ -1,5 +1,5 @@
 @tool
-@icon("res://addons/editor_export_command/icon.svg")
+@icon("./icon.svg")
 class_name ToolEditorExportPlugin
 extends EditorExportPlugin
 

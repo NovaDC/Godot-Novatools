@@ -1,4 +1,5 @@
 @tool
+@icon("./icon.svg")
 class_name PauseEye
 extends Node
 
