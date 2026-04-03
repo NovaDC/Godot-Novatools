@@ -604,7 +604,8 @@ static func compress_zip_async(source_path:String,
 	if err == OK:
 		for file_path in files:
 			assert(file_path.begins_with(source_path)) # sanity check
-			var internal_path = file_path.substr(source_path.length())
+			var internal_path = file_path.trim_prefix(source_path)
+			internal_path = internal_path.trim_prefix("/").trim_prefix("\\")
 
 			var data := FileAccess.get_file_as_bytes(file_path)
 			if data.is_empty():
