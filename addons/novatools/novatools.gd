@@ -767,11 +767,13 @@ static func _recursive_path_normalizer_step(path:Variant) -> String:
 ## Resolving this is outside the scope of this function,
 ## and should be handled on a case by case basis instead.
 static func normalize_path_absolute(path:Variant, no_relative := true) -> String:
-	# uid paths just map back to res paths
-	if typeof(path) == TYPE_INT or path.begins_with("uid:"):
+	if typeof(path) == TYPE_INT:
 		path = uid_to_res(path)
 
 	var norm_path := _recursive_path_normalizer_step(path)
+
+	if path.begins_with("uid:"):
+		path = uid_to_res(path)
 
 	if norm_path.is_empty():
 		return ""
