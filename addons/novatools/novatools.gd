@@ -186,8 +186,10 @@ static func quick_editor_file_dialog(when_confirmed := Callable(),
 	if not Engine.is_editor_hint():
 		return ""
 
-	var choice := ""
-
+	# in order to get a signal's paramater outside of it,
+	# we cant set a cell variable directly, instead we need to modify the
+	# value of something for it to be remembered outside the single callback
+	var choice_container:Array = [""]
 	var file_select := EditorFileDialog.new()
 	file_select.visible = false
 	file_select.current_dir = start_path
@@ -196,15 +198,19 @@ static func quick_editor_file_dialog(when_confirmed := Callable(),
 	file_select.file_mode = file_mode
 	file_select.title = title
 	file_select.set_filters(filters)
-	file_select.confirmed.connect(func(): choice = file_select.current_dir)
+	file_select.file_selected.connect(func(selected): choice_container[0] = selected)
+	file_select.dir_selected.connect(func(selected): choice_container[0] = selected)
+	file_select.files_selected.connect(func(selected): choice_container[0] = selected)
+	file_select.canceled.connect(func(): choice_container[0] = "")
 	EditorInterface.popup_dialog_centered(file_select)
 	await file_select.visibility_changed
-	file_select.queue_free()
+	file_select.queue_free.call_deferred()
+	await Engine.get_main_loop().process_frame
 
-	if not choice.is_empty() and when_confirmed.is_valid():
-		await when_confirmed.call(choice)
+	if not choice_container[0].is_empty() and when_confirmed.is_valid():
+		await when_confirmed.call(choice_container[0])
 
-	return choice
+	return choice_container[0]
 
 ## Popups a simple popup in front of the editor screen, blocking any editor input,
 ## with a given bbcode formatted [param message]
