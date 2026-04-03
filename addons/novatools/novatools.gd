@@ -666,7 +666,7 @@ static func get_children_dir_recursive(from_path:String,
 static func get_children_files_recursive(from_path:String) -> PackedStringArray:
 	var found = Array(DirAccess.get_files_at(from_path))
 	found = found.map(func(r:String): return from_path.path_join(r))
-	found = found.map(normalize_path_absolute)
+	found = found.map(normalize_path_absolute).filter(func(s:String): return not s.is_empty())
 	found = PackedStringArray(found)
 	for dir in DirAccess.get_directories_at(from_path):
 		found.append_array(get_children_files_recursive(from_path.path_join(dir)))
