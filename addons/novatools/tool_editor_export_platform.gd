@@ -11,10 +11,10 @@ extends EditorExportPlatformExtension
 ## The newline separator used in config error messages.
 const ERR_MESSAGE_NEWLINE := "\n"
 
-func _has_valid_project_configuration(_preset:EditorExportPreset):
+func _has_valid_project_configuration(_preset:EditorExportPreset)-> bool:
 	return true
 
-func _has_valid_export_configuration(preset:EditorExportPreset, debug:bool):
+func _has_valid_export_configuration(preset:EditorExportPreset, debug:bool) -> bool:
 	var preset_ok := true
 	if preset.is_runnable():
 		add_config_error(self._get_name().capitalize() + " cannot be runnable.")
@@ -36,15 +36,15 @@ func _has_valid_export_configuration(preset:EditorExportPreset, debug:bool):
 		preset_ok = false
 	return preset_ok
 
-func _can_export(preset:EditorExportPreset, debug:bool):
+func _can_export(preset:EditorExportPreset, debug:bool) -> bool:
 	return (_has_valid_export_configuration(preset, debug)
 			and _has_valid_project_configuration(preset)
 			)
 
-func _is_executable(_path:String):
+func _is_executable(_path:String) -> bool:
 	return false
 
-func _get_binary_extensions(_preset:EditorExportPreset):
+func _get_binary_extensions(_preset:EditorExportPreset) -> PackedStringArray:
 	return PackedStringArray()
 
 # DO NOT OVERRIDE THIS METHOD WHEN EXTENDING
@@ -68,32 +68,28 @@ func _get_os_name():
 func _get_platform_features():
 	return PackedStringArray([_get_name().strip_edges().to_lower().replace(" ", "")])
 
-func _get_preset_features(preset:EditorExportPreset):
-	if (preset.get_or_env("post_processing_commands", "") is Array and
-		preset.get_or_env("post_processing_commands", "").size() > 0
-		):
-		return PackedStringArray(["postprocessed"])
+func _get_preset_features(preset:EditorExportPreset) -> PackedStringArray:
 	return PackedStringArray()
 
-func _get_export_options():
+func _get_export_options() -> Array[Dictionary]:
 	return []
 
 ## Adds a single line to the config error. Like [method set_config_error],
 ## this should only be called in [method _can_export],
 ## [method _has_valid_export_configuration], or [method _has_valid_project_configuration].
-func add_config_error(error:String):
+func add_config_error(error:String) -> void:
 	set_config_error(get_config_error() + ERR_MESSAGE_NEWLINE + error.strip_edges())
 
 ## A abstract method.[br]
 ## Must be overridden when extending this class.
-func _export_hook(preset:EditorExportPreset, path:String) -> Error:
+func _export_hook(preset:EditorExportPreset, path:String) -> int:
 	assert(false, "ABSTRACT METHOD NOT OVERRIDDEN")
 	return ERR_CANT_RESOLVE
 
 ## Removes a single line to the config error. Like [method  set_config_error],
 ## this should only be called in [method  _can_export],
 ## [method  _has_valid_export_configuration], or [method  _has_valid_project_configuration].
-func remove_config_error(error:String):
+func remove_config_error(error:String)  -> void:
 	var filtered_errs := Array(error.split(ERR_MESSAGE_NEWLINE))
 	filtered_errs = filtered_errs.filter(func(e:String) :return e.strip_edges() != error)
 	var errs = ERR_MESSAGE_NEWLINE.join(filtered_errs)
@@ -101,5 +97,5 @@ func remove_config_error(error:String):
 	set_config_error(errs)
 
 ## Calls this export tool manually.
-func manual_export_async(path:String, preset:EditorExportPreset) -> Error:
+func manual_export_async(path:String, preset:EditorExportPreset) -> int:
 	return await _export_project(preset, false, path, 0)

@@ -18,7 +18,7 @@ var _current_export_flags := 0
 ## Used as a replacement for [method _export_begin].[br]
 ## [param features], [param is_debug], [param path] and [param flags]
 ## all correlate to the parameters given to [method _export_begin].
-func _export_begin_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int):
+func _export_begin_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int) -> void:
 	assert(false)
 
 ## INTENDED TO BE VIRTUAL[br]
@@ -26,7 +26,7 @@ func _export_begin_tool(features:PackedStringArray, is_debug:bool, path:String, 
 ## Used as a replacement for [method _export_end].[br]
 ## [param features], [param is_debug], [param path] and [param flags]
 ## all correlate to the parameters given to [method _export_begin].
-func _export_end_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int):
+func _export_end_tool(features:PackedStringArray, is_debug:bool, path:String, flags:int) -> void:
 	assert(false)
 
 
@@ -35,7 +35,7 @@ func is_exporting() -> bool:
 	return _is_exporting
 
 ## Intended to be a sealed method.
-func _export_begin(features:PackedStringArray, is_debug:bool, path:String, flags:int):
+func _export_begin(features:PackedStringArray, is_debug:bool, path:String, flags:int) -> void:
 	_is_exporting = true
 
 	_current_export_features = features
@@ -48,7 +48,7 @@ func _export_begin(features:PackedStringArray, is_debug:bool, path:String, flags
 						_current_export_flags)
 
 # Intended to be a sealed method.
-func _export_end():
+func _export_end()  -> void:
 	_export_end_tool(_current_export_features,
 					_current_export_is_debug,
 					_current_export_path,

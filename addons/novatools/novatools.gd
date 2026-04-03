@@ -806,7 +806,7 @@ static func normalize_path_absolute(path:Variant, no_relative := true) -> String
 ## The provided [param uid] can be the [int] uid;
 ## or a [String], [StringName], [Array], or [PackedStringArray] that
 ## correlates to a [code]uid://[/code] path.
-## THis function is compatible with version of godot that don't support
+## This function is compatible with version of godot that don't support
 ## [code]uid://[/code] paths, instead choosing to always return an empty string.
 static func uid_to_res(uid:Variant) -> String:
 	var resource_uid = Engine.get_singleton("ResourceUID")
@@ -1119,7 +1119,7 @@ static func enum_extract_dict(name_or_object:Variant,
 		if enforce_keys_of_string_like:
 			if kt != TYPE_NIL: #If the keys are variant, we should check them manually
 				# if they are [Variant typed], which is ok when using both
-				# stringnames and strings as keys, since they are technically
+				# string names and strings as keys, since they are technically
 				# distinct but equally valid enum name types
 				assert(kt in [TYPE_STRING, TYPE_STRING_NAME])
 			else:
